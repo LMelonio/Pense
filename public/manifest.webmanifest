@@ -1,0 +1,11 @@
+{
+  "name": "Pense",
+  "short_name": "Pense",
+  "description": "Estude para provas, concursos e processos seletivos em lições curtas.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#EEF4F2",
+  "theme_color": "#237A70",
+  "lang": "pt-BR",
+  "icons": [{ "src": "icone.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
