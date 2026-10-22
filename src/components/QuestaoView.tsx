@@ -26,7 +26,7 @@ export function QuestaoView({ q, recorte, nomeExame, textoBase, estados, escolhe
   return (
     <>
       <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-        <span className="pill" style={{ background: cor.suave, color: cor.forte }}>{q.assunto}</span>
+        <span className="pill" style={{ background: cor.suave, color: cor.forte }}>{recorte ? `${recorte.nome} · ${q.assunto}` : q.assunto}</span>
         <span className="muted">{origemDe(q, nomeExame)}</span>
       </div>
       {textoBase && (

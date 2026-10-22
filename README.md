@@ -32,19 +32,27 @@ O visitante sem login pode, em *Perfil › Configurações*, **salvar o progress
 
 Contas com e-mail podem trocar a senha em *Configurações › Alterar senha*. O link de "Esqueci minha senha" abre a tela de nova senha no app.
 
+No primeiro acesso o aluno escolhe só a **língua estrangeira** (Inglês ou Espanhol) e a **frequência de estudo** (meta diária). As duas mudam depois em *Perfil › Como você estuda*.
+
+### Matérias e vidas
+
+- O conteúdo do ENEM é organizado por **matéria** (Português, Literatura, Inglês ou Espanhol, Artes, Educação Física, Tecnologia, História, Geografia, Filosofia, Sociologia, Biologia, Química, Física e Matemática). Dentro de cada matéria ficam os **subconteúdos** (ex.: Geografia › Urbanização). Início e Trilha usam as matérias nas abas.
+- O aluno tem **3 vidas**; errar numa lição gasta 1, e 1 volta a cada 30 minutos. Sem vidas, ele escolhe: **esperar**, **assistir a um anúncio** (+1 vida) ou conhecer o **Pense Pro** (vidas ilimitadas, ainda "em breve"). Terminar uma revisão dos erros também devolve 1 vida.
+- O anúncio ainda é um **espaço reservado** com contagem de 15 s (`src/components/AnuncioPremiado.tsx`). Para veicular anúncios de verdade, troque o miolo do componente pela chamada da rede de anúncios premiados (ex.: Google Ad Manager).
+
 > **E-mails do Supabase:** o envio padrão do Supabase só entrega para os e-mails da equipe do projeto e tem limite de poucos envios por hora. Para "Esqueci minha senha" funcionar para qualquer aluno, configure um SMTP próprio (Resend, Brevo, SES…) em *Authentication › Emails › SMTP Settings*. Com "Confirm email" desligado, criar conta não depende de e-mail.
 
 ## 3. Criar o banco no Supabase (10 min)
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (plano Free).
-2. Abra o **SQL Editor** e rode `supabase/setup_completo.sql`. Ele cria as tabelas, as regras de acesso (RLS), os gatilhos e os dados base.
+2. Abra o **SQL Editor** e rode `supabase/setup_completo.sql`. Ele cria as tabelas, as regras de acesso (RLS), os gatilhos e os dados base (é a soma das migrations `0001` a `0005`; num banco que já existe, rode só as migrations que faltam).
 3. Copie `.env.example` para `.env` e preencha, com os dados de *Project Settings › API Keys*:
    - `VITE_SUPABASE_URL`: `https://<id-do-projeto>.supabase.co` (não o link do painel).
    - `VITE_SUPABASE_ANON_KEY`: a chave **publishable** (`sb_publishable_…`) ou a **anon** legada (`eyJ…`).
    - `SUPABASE_SERVICE_ROLE_KEY`: a chave **secret** (`sb_secret_…`) ou a **service_role** legada. Só serve para o `npm run seed`. **Nunca vai para o GitHub.**
 4. Carregue as questões. Escolha **um** caminho:
    - **Terminal:** `npm run seed`.
-   - **SQL Editor:** rode os arquivos de `supabase/seed/` em ordem, de `01` a `05`.
+   - **SQL Editor:** rode os arquivos de `supabase/seed/` em ordem, de `01` a `16`.
 5. Em *Authentication › Sign In / Providers*:
    - ligue **Allow anonymous sign-ins** (botão "Entrar sem login");
    - ligue **Email** e, para testes, desligue **Confirm email**;
@@ -60,7 +68,7 @@ Para conferir o conteúdo carregado:
 select * from v_resumo_conteudo;
 ```
 
-Deve mostrar LC 100, CH 90, CN 87 e MT 89.
+Deve mostrar as 15 matérias somando 366 questões (Português 37, Literatura 17, Inglês 10, Espanhol 10, Artes 10, Educação Física 10, Tecnologia 6, História 26, Geografia 28, Filosofia 22, Sociologia 14, Biologia 33, Química 27, Física 27, Matemática 89).
 
 ## 4. Login com Google
 
@@ -90,8 +98,8 @@ A chave publishable/anon pode ficar no app publicado, porque o acesso é protegi
 
 ```
 src/
-  screens/      telas: Entrar, NovaSenha, ProvaAlvo, Inicio, Licao, Resultado, Trilha, Revisar, Refazer, Perfil, Configuracoes
-  components/   ícones, mascote, barra de navegação, campo de senha, questão, renderização de texto e fórmulas
+  screens/      telas: Entrar, NovaSenha, PrimeiroAcesso, Inicio, Licao, Resultado, Trilha, Revisar, Refazer, Perfil, Configuracoes, Pro
+  components/   ícones, mascote, barra de navegação, campo de senha, questão, texto e fórmulas, sem vidas, anúncio premiado, cartão do Pro
   domain/       regras.ts (XP, vidas, coroas, sequência, revisão espaçada, conquistas)
   data/         repo.ts (contrato e erros em português), supabaseRepo.ts (banco), demoRepo.ts (navegador)
   state/        AppContext (usuário, dados, tema)
@@ -111,6 +119,8 @@ scripts/        gerar-seed-sql.mjs e seed-supabase.mjs
 | Funções | gatilho que cria o perfil no cadastro (inclusive Google e sem login), `excluir_minha_conta()` (LGPD), `v_ranking_semana`, `v_resumo_conteudo` |
 
 Usuários novos não precisam ser criados à mão: o cadastro no app (ou *Authentication › Users › Add user* no painel) dispara o gatilho, que cria o perfil e as preferências.
+
+Em `recortes` ficam as **matérias** de cada exame; a coluna `area` agrupa as do ENEM (Linguagens, Humanas, Natureza, Matemática). O `assunto` da questão é o subconteúdo dentro da matéria.
 
 Para adicionar um concurso, cadastre-o em `exames` (com `ativo = true`), as matérias em `recortes` e as questões em `questoes` e `alternativas`.
 

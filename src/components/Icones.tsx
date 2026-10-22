@@ -8,7 +8,8 @@ const S = ({ size = 22, color = 'currentColor', className, style, children, fill
 
 export const IcHome = (p: P) => <S {...p}><path d="M3 11.5 12 4l9 7.5" /><path d="M5.5 10v9.5h13V10" /></S>;
 export const IcTrilha = (p: P) => <S {...p}><circle cx="6" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" /><path d="M8.5 18H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5" /></S>;
-export const IcRevisar = (p: P) => <S {...p}><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 4v5h-5" /></S>;
+// Caderno com espiral (revisão dos erros); o livro (IcLivro) fica para as unidades da trilha.
+export const IcRevisar = (p: P) => <S {...p}><rect x="6" y="3" width="13" height="18" rx="2" /><path d="M4 7.5h4M4 12h4M4 16.5h4M11 8h5M11 12h5" /></S>;
 export const IcPerfil = (p: P) => <S {...p}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></S>;
 export const IcX = (p: P) => <S {...p} sw={2.6}><path d="M6 6l12 12M18 6 6 18" /></S>;
 export const IcVoltar = (p: P) => <S {...p} sw={2.5}><path d="M15 5l-7 7 7 7" /></S>;
@@ -22,7 +23,8 @@ export const IcEstrela = (p: P) => <S {...p} sw={2.4}><path d="M12 3l2.7 5.6 6.1
 export const IcTrofeu = (p: P) => <S {...p}><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H4.5a3 3 0 0 0 3.5 4M16 6h3.5a3 3 0 0 1-3.5 4M12 13v4M8 20h8" /></S>;
 export const IcSino = (p: P) => <S {...p}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></S>;
 export const IcAlvo = (p: P) => <S {...p}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.5" /></S>;
-export const IcGrupo = (p: P) => <S {...p}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7" /><path d="M18.5 14a6 6 0 0 1 3 6" /></S>;
+export const IcIdioma = (p: P) => <S {...p}><path d="M4 5h11v8H9l-3 3v-3H4z" /><path d="M15 9h5v8h-2v3l-3-3h-4v-2" /></S>;
+export const IcPlay = (p: P) => <S {...p} fill={p.color ?? 'currentColor'}><path d="M8 5.5v13l10.5-6.5z" /></S>;
 export const IcCalendario = (p: P) => <S {...p}><path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4" /></S>;
 export const IcBroto = (p: P) => <S {...p}><path d="M12 21v-8M12 13c0-4 3-7 7-7 0 4-3 7-7 7zM12 15c0-3-2.5-5.5-6-5.5 0 3 2.5 5.5 6 5.5z" /></S>;
 export const IcCoroa = ({ size = 22, fill = '#F2C14E', stroke = '#B8860B' }: { size?: number; fill?: string; stroke?: string }) => (

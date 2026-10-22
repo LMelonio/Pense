@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useDados } from '../state/AppContext';
 import { Anel, BannerDemo, BarraNav, Folha, Stats, corDe } from '../components/Base';
 import { CORES_COROA, IcCheck, IcCoracao, IcCoroa, IcRevisar } from '../components/Icones';
-import { NOMES_COROA, VIDAS_MAX, chaveTema, hoje, revisaoVencida, sequenciaAtual, temasDoRecorte, vidasAgora, QUESTOES_POR_LICAO, XP_ACERTO } from '../domain/regras';
+import { SemVidas } from '../components/SemVidas';
+import { NOMES_COROA, VIDAS_MAX, chaveTema, hoje, recortesVisiveis, revisaoVencida, sequenciaAtual, temasDoRecorte, vidasAgora, QUESTOES_POR_LICAO, XP_ACERTO } from '../domain/regras';
 import type { InfoTema } from '../domain/regras';
 
 const DIAS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
@@ -12,7 +13,7 @@ export default function Inicio() {
   const { dados, conteudo } = useDados();
   const nav = useNavigate();
   const exame = conteudo.exames.find((e) => e.id === dados.prefs.exame_id) ?? conteudo.exames[0];
-  const recortes = conteudo.recortes.filter((r) => r.exame_id === exame.id);
+  const recortes = useMemo(() => recortesVisiveis(conteudo, exame.id, dados.prefs.lingua), [conteudo, exame.id, dados.prefs.lingua]);
   const [recId, setRecId] = useState(recortes[0]?.id);
   const [sel, setSel] = useState<InfoTema | null>(null);
   const recorte = recortes.find((r) => r.id === recId) ?? recortes[0];
@@ -130,15 +131,12 @@ export default function Inicio() {
               <div className="card" style={{ textAlign: 'center', padding: 10, background: 'var(--primary-soft)', borderColor: 'transparent' }}><div className="big">{Math.min(QUESTOES_POR_LICAO, sel.total)}</div><span className="small">questões</span></div>
               <div className="card" style={{ textAlign: 'center', padding: 10, background: 'var(--coral-soft)', borderColor: 'transparent' }}><div className="big">{vidas}</div><span className="small">vidas</span></div>
             </div>
-            {vidas === 0 ? (
+            {vidas === 0 ? <SemVidas esperar={() => setSel(null)} /> : (
               <>
-                <p className="small">Suas vidas acabaram. Faça uma revisão para ganhar 1 vida, ou espere {proximaEmMin} min.</p>
-                <Link className="btn lav" to="/revisar">Ir para a revisão</Link>
+                <button className="btn" onClick={() => nav(`/licao/${encodeURIComponent(sel.recorte_id)}/${encodeURIComponent(sel.assunto)}`)}>Começar</button>
+                <button className="linkbtn" onClick={() => setSel(null)}>Agora não</button>
               </>
-            ) : (
-              <button className="btn" onClick={() => nav(`/licao/${encodeURIComponent(sel.recorte_id)}/${encodeURIComponent(sel.assunto)}`)}>Começar</button>
             )}
-            <button className="linkbtn" onClick={() => setSel(null)}>Agora não</button>
           </>
         )}
       </Folha>

@@ -12,13 +12,15 @@ export default function Revisar() {
   const pendentes = revisaoPendente(dados);
   const lista = vencidas.length ? vencidas : pendentes;
   const grupos = useMemo(() => {
-    const m = new Map<string, { assunto: string; recorte: string; cor: string; n: number }>();
+    // Agrupa por matéria + assunto: "Interpretação de texto" de Inglês e de Português são grupos diferentes.
+    const m = new Map<string, { chave: string; assunto: string; recorte_id: string; recorte: string; cor: string; n: number }>();
     for (const r of lista) {
       const q = conteudo.questoes.find((x) => x.id === r.questao_id);
       if (!q) continue;
       const rc = conteudo.recortes.find((x) => x.id === q.recorte_id);
-      const g = m.get(q.assunto) ?? { assunto: q.assunto, recorte: rc?.nome ?? '', cor: rc?.cor ?? 'lav', n: 0 };
-      g.n++; m.set(q.assunto, g);
+      const chave = `${q.recorte_id}|${q.assunto}`;
+      const g = m.get(chave) ?? { chave, assunto: q.assunto, recorte_id: q.recorte_id, recorte: rc?.nome ?? '', cor: rc?.cor ?? 'lav', n: 0 };
+      g.n++; m.set(chave, g);
     }
     return [...m.values()].sort((a, b) => b.n - a.n);
   }, [lista, conteudo]);
@@ -60,7 +62,7 @@ export default function Revisar() {
             <h2 className="h2" style={{ fontSize: 18 }}>De onde vêm seus erros</h2>
             <div className="list-card">
               {grupos.map((g) => (
-                <Link key={g.assunto} to={`/refazer?tema=${encodeURIComponent(g.assunto)}${vencidas.length ? '' : '&todas=1'}`} className="list-row">
+                <Link key={g.chave} to={`/refazer?recorte=${encodeURIComponent(g.recorte_id)}&tema=${encodeURIComponent(g.assunto)}${vencidas.length ? '' : '&todas=1'}`} className="list-row">
                   <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: corDe(g.cor).barra, flexShrink: 0 }} />
                   <span className="col spacer" style={{ gap: 0 }}><span style={{ fontWeight: 600 }}>{g.assunto}</span><span className="muted">{g.recorte}</span></span>
                   <span className="row" style={{ gap: 3 }} aria-label={`${g.n} para refazer`}>{Array.from({ length: Math.min(g.n, 6) }, (_, i) => <span key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--coral)' }} />)}</span>

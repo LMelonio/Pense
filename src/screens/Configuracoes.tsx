@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useApp, useDados } from '../state/AppContext';
 import { repo, supabaseConfigurado } from '../lib/config';
 import { CampoSenha, Folha, Interruptor, Segmentado } from '../components/Base';
+import { CartaoPro } from '../components/CartaoPro';
 import { IcCheck, IcGoogle, IcSeta, IcVoltar, Mascote } from '../components/Icones';
 import type { Preferencias, TamanhoTexto, Tema } from '../data/types';
 
@@ -11,7 +12,6 @@ export default function Configuracoes() {
   const { usuario } = useApp();
   const nav = useNavigate();
   const prefs = dados.prefs;
-  const [plano, setPlano] = useState<'mensal' | 'anual'>('anual');
   const [excluir, setExcluir] = useState(false);
   const [editarNome, setEditarNome] = useState(false);
   const [nome, setNome] = useState(dados.perfil.nome);
@@ -65,13 +65,6 @@ export default function Configuracoes() {
     avisar('Questões e imagens salvas para estudar sem internet.');
   }
 
-  async function exportar() {
-    const blob = new Blob([JSON.stringify(await repo.exportar(dados), null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = 'pense-meus-dados.json'; a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
   return (
     <div className="app">
       <header className="row" style={{ padding: '14px 16px 10px', borderBottom: '1.5px solid var(--line)', gap: 8 }}>
@@ -106,27 +99,7 @@ export default function Configuracoes() {
             <Linha t="Seu plano: Grátis" s="Questões, trilha e revisão sem pagar nada" />
             <span className="pill" style={{ background: 'var(--ok-soft)', color: 'var(--ok-text)' }}>Atual</span>
           </div>
-          <div className="col" style={{ background: 'var(--lav)', color: '#fff', borderRadius: 22, padding: 16, gap: 12 }}>
-            <div className="row"><span className="title" style={{ fontSize: 22 }}>Pense Pro</span><span className="pill" style={{ background: 'rgba(255,255,255,.2)' }}>Em breve</span></div>
-            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, lineHeight: 1.5 }}>
-              <li>Simulados completos, com o tempo da prova</li><li>Correção de redação com IA</li><li>Relatório de desempenho para você e o responsável</li>
-            </ul>
-            <div role="radiogroup" aria-label="Escolha do plano" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {[{ k: 'mensal', n: 'Mensal', p: 'R$ 9,90', s: 'por mês · R$ 118,80 no ano', tag: '' }, { k: 'anual', n: 'Anual', p: 'R$ 69,90', s: 'R$ 5,83 por mês · economize R$ 48,90', tag: 'Promo 41% off' }].map((x) => (
-                <button key={x.k} role="radio" aria-checked={plano === x.k} onClick={() => setPlano(x.k as 'mensal' | 'anual')}
-                  style={{ position: 'relative', textAlign: 'left', padding: 12, borderRadius: 16, border: `2px solid ${plano === x.k ? '#fff' : 'rgba(255,255,255,.35)'}`, background: plano === x.k ? 'rgba(255,255,255,.16)' : 'transparent', color: '#fff', cursor: 'pointer' }}>
-                  {x.tag && <span style={{ position: 'absolute', top: -10, right: 10, background: '#F2C14E', color: '#5A3E00', borderRadius: 99, fontSize: 11, fontWeight: 700, padding: '2px 8px' }}>{x.tag}</span>}
-                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600, opacity: 0.9 }}>{x.n}</span>
-                  <span className="big" style={{ display: 'block', fontSize: 20 }}>{x.p}</span>
-                  <span style={{ display: 'block', fontSize: 12, opacity: 0.85 }}>{x.s}</span>
-                </button>
-              ))}
-            </div>
-            <button className="btn white" style={{ color: 'var(--lav-dark)' }} onClick={async () => { await atualizar((d) => ({ ...d, interessePro: plano }), { interessePro: true }); avisar('Pronto! Vamos te avisar quando o Pro lançar.'); }}>
-              {dados.interessePro ? 'Pronto, vamos te avisar' : 'Me avise quando lançar'}
-            </button>
-            <span style={{ fontSize: 12, opacity: 0.8 }}>Preços em teste. Ninguém é cobrado agora.</span>
-          </div>
+          <CartaoPro />
         </Secao>
 
         <Secao titulo="Aparência">
@@ -152,8 +125,6 @@ export default function Configuracoes() {
 
         <Secao titulo="Privacidade">
           <div className="list-card">
-            <LinhaSwitch t="Aparecer no ranking da turma" s="Só nome e XP. Começa desligado." v={prefs.ranking_visivel} m={(v) => salvar({ ranking_visivel: v })} />
-            <button className="list-row" onClick={exportar}><Linha t="Baixar meus dados" s="Arquivo JSON com seu progresso" /><IcSeta color="var(--text3)" size={18} /></button>
             <button className="list-row" onClick={() => setExcluir(true)}><span style={{ fontWeight: 600, color: 'var(--coral-dark)' }}>Excluir conta</span></button>
           </div>
         </Secao>
@@ -164,7 +135,7 @@ export default function Configuracoes() {
 
       <Folha aberta={excluir} fechar={() => setExcluir(false)} titulo="Excluir conta">
         <span className="title" style={{ fontSize: 24 }}>Excluir sua conta?</span>
-        <p className="small">Seu XP, sequência, coroas e conquistas serão apagados e não dá para recuperar. Se quiser, baixe seus dados antes.</p>
+        <p className="small">Seu XP, sequência, coroas e conquistas serão apagados e não dá para recuperar.</p>
         <button className="btn" onClick={() => setExcluir(false)}>Manter minha conta</button>
         <button className="linkbtn" style={{ color: 'var(--coral-dark)' }} onClick={async () => { try { await repo.excluirConta(); nav('/', { replace: true }); } catch (e) { avisar((e as Error).message); } }}>Excluir mesmo assim</button>
       </Folha>

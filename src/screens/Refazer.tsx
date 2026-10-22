@@ -8,7 +8,7 @@ import type { EstadoAlt } from '../components/QuestaoView';
 import { IcLampada, IcLock, IcRevisar, IcX, Mascote } from '../components/Icones';
 import { Texto } from '../components/Texto';
 import { tocar, vibrar } from '../components/Base';
-import { XP_REVISAO, agendarErro, ajustarVidas, hoje, novasConquistas, reagendar, revisaoPendente, revisaoVencida, somarXP } from '../domain/regras';
+import { XP_REVISAO, agendarErro, ajustarVidas, areasDoExame, hoje, novasConquistas, reagendar, revisaoPendente, revisaoVencida, somarXP } from '../domain/regras';
 import type { Questao, Tentativa } from '../data/types';
 
 const MAX_SESSAO = 10;
@@ -20,10 +20,11 @@ export default function Refazer() {
   const questoes = useMemo(() => {
     const ids = params.get('ids')?.split(',').filter(Boolean);
     const tema = params.get('tema');
+    const recorte = params.get('recorte');
     let itens = params.get('todas') || ids ? revisaoPendente(dados) : revisaoVencida(dados);
     if (ids) itens = itens.filter((r) => ids.includes(r.questao_id));
     const qs = itens.map((r) => conteudo.questoes.find((q) => q.id === r.questao_id)).filter((q): q is Questao => !!q);
-    return (tema ? qs.filter((q) => q.assunto === tema) : qs).slice(0, MAX_SESSAO);
+    return qs.filter((q) => (!tema || q.assunto === tema) && (!recorte || q.recorte_id === recorte)).slice(0, MAX_SESSAO);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -100,12 +101,12 @@ export default function Refazer() {
     }
     const xp = res.reduce((s, x) => s + x, 0);
     const recuperadas = res.filter((x) => x > 0).length;
-    const recortesDoExame = conteudo.recortes.filter((r) => r.exame_id === dados.prefs.exame_id).length;
+    const areas = areasDoExame(conteudo, dados.prefs.exame_id);
     let ganhas: string[] = [];
     await atualizar((d) => {
       let n = somarXP(d, xp);
       n = { ...n, perfil: { ...ajustarVidas(n.perfil, +1), revisoes_concluidas: n.perfil.revisoes_concluidas + 1, questoes_feitas: n.perfil.questoes_feitas + questoes.length, acertos_total: n.perfil.acertos_total + recuperadas } };
-      ganhas = novasConquistas(n, recortesDoExame);
+      ganhas = novasConquistas(n, areas);
       const agora = new Date().toISOString();
       return { ...n, conquistas: { ...n.conquistas, ...Object.fromEntries(ganhas.map((g) => [g, agora])) } };
     }, { perfil: true, xpDia: [hoje()] });

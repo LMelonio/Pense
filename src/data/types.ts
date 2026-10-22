@@ -5,7 +5,8 @@ export type Formato = '5_alternativas' | '4_alternativas' | 'certo_errado';
 export type Dificuldade = 'fácil' | 'média' | 'difícil';
 
 export interface Exame { id: string; nome: string; tipo: TipoExame; organizador: string; ativo: boolean }
-export interface Recorte { id: string; exame_id: string; sigla: string; nome: string; cor: string; ordem: number }
+/** Matéria do exame (Português, Inglês, História…). area agrupa as matérias do ENEM (Linguagens, Humanas…). */
+export interface Recorte { id: string; exame_id: string; sigla: string; nome: string; cor: string; ordem: number; area?: string | null }
 export interface Figura { imagem: string; descricao: string }
 export interface Alternativa { letra: string; texto: string | null; imagem: string | null }
 

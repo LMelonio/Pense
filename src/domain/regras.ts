@@ -4,7 +4,7 @@ import type { DadosAluno, ItemRevisao, Perfil, ProgressoTema, Questao, Conteudo 
 export const XP_ACERTO = 10;
 export const BONUS_PERFEITA = 5;
 export const XP_REVISAO = [5, 4, 3]; // sem dica, 1 dica, 2 dicas
-export const VIDAS_MAX = 5;
+export const VIDAS_MAX = 3;
 export const MINUTOS_POR_VIDA = 30;
 export const QUESTOES_POR_LICAO = 5;
 export const TEMAS_POR_UNIDADE = 6;
@@ -134,6 +134,20 @@ export function questoesDoExame(c: Conteudo, exame_id: string, lingua: string) {
   return c.questoes.filter((q) => q.exame_id === exame_id && (!q.lingua || q.lingua === lingua));
 }
 
+/** Matérias do exame que têm questões na língua escolhida (Inglês ou Espanhol, conforme a preferência). */
+export function recortesVisiveis(c: Conteudo, exame_id: string, lingua: string) {
+  const comQuestoes = new Set(questoesDoExame(c, exame_id, lingua).map((q) => q.recorte_id));
+  return c.recortes.filter((r) => r.exame_id === exame_id && comQuestoes.has(r.id)).sort((a, b) => a.ordem - b.ordem);
+}
+
+/** Áreas do exame (Linguagens, Humanas…) e a área de cada matéria, para a conquista "Todas as áreas". */
+export function areasDoExame(c: Conteudo, exame_id: string) {
+  const areaDe: Record<string, string> = {};
+  for (const r of c.recortes) if (r.exame_id === exame_id) areaDe[r.id] = r.area ?? r.id;
+  return { total: new Set(Object.values(areaDe)).size, areaDe };
+}
+export type Areas = ReturnType<typeof areasDoExame>;
+
 export function temasDoRecorte(c: Conteudo, recorte_id: string, lingua: string): InfoTema[] {
   const cont = new Map<string, number>();
   for (const q of c.questoes) if (q.recorte_id === recorte_id && (!q.lingua || q.lingua === lingua)) cont.set(q.assunto, (cont.get(q.assunto) ?? 0) + 1);
@@ -182,7 +196,7 @@ export const CONQUISTAS = [
   { codigo: 'trinta_dias', nome: '30 dias seguidos', descricao: 'Bateu a meta 30 dias seguidos.', icone: 'calendar', cor: '#F2A93B', meta: 30 }
 ] as const;
 
-export function progressoConquista(codigo: string, d: DadosAluno, recortesDoExame: number) {
+export function progressoConquista(codigo: string, d: DadosAluno, areas: Areas) {
   const temas = Object.values(d.temas);
   switch (codigo) {
     case 'primeiro_passo': return temas.reduce((s, t) => s + t.licoes, 0);
@@ -192,17 +206,17 @@ export function progressoConquista(codigo: string, d: DadosAluno, recortesDoExam
     case 'revisao_em_dia': return d.perfil.revisoes_concluidas;
     case 'trezentas': return d.perfil.questoes_feitas;
     case 'dez_ouros': return temas.filter((t) => t.coroa === 3).length;
-    case 'quatro_areas': return Math.min(recortesDoExame, new Set(temas.map((t) => t.recorte_id)).size);
+    case 'quatro_areas': return Math.min(areas.total, new Set(temas.map((t) => areas.areaDe[t.recorte_id]).filter(Boolean)).size);
     default: return 0;
   }
 }
 
-export function novasConquistas(d: DadosAluno, recortesDoExame: number, extra: { perfeita?: boolean } = {}) {
+export function novasConquistas(d: DadosAluno, areas: Areas, extra: { perfeita?: boolean } = {}) {
   const ganhas: string[] = [];
   for (const c of CONQUISTAS) {
     if (d.conquistas[c.codigo]) continue;
-    const meta = c.codigo === 'quatro_areas' ? recortesDoExame : c.meta;
-    const ok = c.codigo === 'licao_perfeita' ? !!extra.perfeita : progressoConquista(c.codigo, d, recortesDoExame) >= meta;
+    const meta = c.codigo === 'quatro_areas' ? areas.total : c.meta;
+    const ok = c.codigo === 'licao_perfeita' ? !!extra.perfeita : progressoConquista(c.codigo, d, areas) >= meta;
     if (ok) ganhas.push(c.codigo);
   }
   return ganhas;

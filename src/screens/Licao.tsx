@@ -5,11 +5,12 @@ import { useDados } from '../state/AppContext';
 import { repo } from '../lib/config';
 import { QuestaoView } from '../components/QuestaoView';
 import type { EstadoAlt } from '../components/QuestaoView';
-import { IcCoracao, IcX, Mascote } from '../components/Icones';
+import { IcCoracao, IcPlay, IcX, Mascote } from '../components/Icones';
 import { Texto } from '../components/Texto';
 import { tocar, vibrar } from '../components/Base';
+import { useAnuncioDeVida } from '../components/SemVidas';
 import {
-  BONUS_PERFEITA, DESAFIO_MINIMO, XP_ACERTO, agendarErro, ajustarVidas, atualizarTema, chaveTema, hoje,
+  BONUS_PERFEITA, DESAFIO_MINIMO, XP_ACERTO, agendarErro, ajustarVidas, areasDoExame, atualizarTema, chaveTema, hoje,
   montarDesafio, montarLicao, novasConquistas, somarXP, unidadesDoRecorte, vidasAgora
 } from '../domain/regras';
 import type { Tentativa } from '../data/types';
@@ -46,6 +47,7 @@ export default function Licao({ desafio = false }: { desafio?: boolean }) {
   const inicio = useRef(Date.now());
   const inicioQ = useRef(Date.now());
   const vidas = vidasAgora(dados.perfil).vidas;
+  const { abrir: assistirAnuncio, anuncio } = useAnuncioDeVida();
 
   if (!questoes.length) {
     return <div className="app"><div className="screen"><p>Não há questões para este tema ainda.</p><Link to="/inicio" className="btn">Voltar</Link></div></div>;
@@ -85,7 +87,7 @@ export default function Licao({ desafio = false }: { desafio?: boolean }) {
     const k = chaveTema(recorte_id, assunto);
     const coroaAntes = dados.temas[k]?.coroa ?? 0;
     const aprovado = desafio ? acertos / Math.max(1, total) >= DESAFIO_MINIMO : undefined;
-    const recortesDoExame = conteudo.recortes.filter((r) => r.exame_id === exame.id).length;
+    const areas = areasDoExame(conteudo, exame.id);
     let ganhas: string[] = [];
     const temasTocados = desafio ? [...new Set(todas.map((t) => questoes.find((x) => x.id === t.questao_id)!.assunto))] : [assunto];
     const novo = await atualizar((d) => {
@@ -102,7 +104,7 @@ export default function Licao({ desafio = false }: { desafio?: boolean }) {
         perfil: { ...n.perfil, questoes_feitas: n.perfil.questoes_feitas + total, acertos_total: n.perfil.acertos_total + acertos },
         unidades: desafio && aprovado ? { ...n.unidades, [`${recorte_id}|${unidadeIdx}`]: true } : n.unidades
       };
-      ganhas = novasConquistas(n, recortesDoExame, { perfeita });
+      ganhas = novasConquistas(n, areas, { perfeita });
       const agora = new Date().toISOString();
       n = { ...n, conquistas: { ...n.conquistas, ...Object.fromEntries(ganhas.map((g) => [g, agora])) } };
       return n;
@@ -157,10 +159,14 @@ export default function Licao({ desafio = false }: { desafio?: boolean }) {
             </div>
           </div>
           {dados.prefs.explicacao_imediata && q.explicacao && <Texto md={q.explicacao} className="texto-questao small" />}
-          {semVidas && !acertou && <p className="small" style={{ fontWeight: 600 }}>Suas vidas acabaram. A lição termina aqui; revise para ganhar uma vida.</p>}
+          {semVidas && !acertou && <>
+            <p className="small" style={{ fontWeight: 600 }}>Suas vidas acabaram. Assista a um anúncio para ganhar 1 vida e continuar, ou termine a lição aqui.</p>
+            <button className="btn lav" onClick={assistirAnuncio}><IcPlay size={18} />Assistir anúncio e continuar</button>
+          </>}
           <button className={`btn ${acertou ? '' : 'coral'}`} onClick={proxima}>{ultima ? 'Ver resultado' : acertou ? 'Continuar' : 'Entendi'}</button>
         </div>
       )}
+      {anuncio}
     </div>
   );
 }

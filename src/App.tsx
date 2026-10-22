@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 import { AppProvider, useApp } from './state/AppContext';
 import { Mascote } from './components/Icones';
 import Entrar from './screens/Entrar';
-import ProvaAlvo from './screens/ProvaAlvo';
+import PrimeiroAcesso from './screens/PrimeiroAcesso';
 import Inicio from './screens/Inicio';
 import Licao from './screens/Licao';
 import Resultado from './screens/Resultado';
@@ -13,6 +13,7 @@ import Refazer from './screens/Refazer';
 import Perfil from './screens/Perfil';
 import Configuracoes from './screens/Configuracoes';
 import NovaSenha from './screens/NovaSenha';
+import Pro from './screens/Pro';
 import { voltouDaRecuperacao } from './data/repo';
 
 function Carregando({ texto = 'Carregando…' }: { texto?: string }) {
@@ -29,7 +30,7 @@ function Protegida({ children, permitirSemOnboarding = false }: { children: Reac
   if (carregando) return <Carregando />;
   if (!usuario) return <Navigate to="/entrar" replace />;
   if (!dados) return <Carregando texto="Preparando seu progresso…" />;
-  if (!dados.prefs.onboarding_ok && !permitirSemOnboarding) return <Navigate to="/prova" replace />;
+  if (!dados.prefs.onboarding_ok && !permitirSemOnboarding) return <Navigate to="/primeiro-acesso" replace />;
   return children;
 }
 
@@ -41,7 +42,8 @@ function Rotas() {
   return (
     <Routes>
       <Route path="/entrar" element={carregando ? <Carregando /> : usuario ? <Navigate to="/inicio" replace /> : <Entrar />} />
-      <Route path="/prova" element={<Protegida permitirSemOnboarding><ProvaAlvo /></Protegida>} />
+      <Route path="/primeiro-acesso" element={<Protegida permitirSemOnboarding><PrimeiroAcesso /></Protegida>} />
+      <Route path="/pro" element={<Protegida><Pro /></Protegida>} />
       <Route path="/inicio" element={<Protegida><Inicio /></Protegida>} />
       <Route path="/licao/:recorte/:assunto" element={<Protegida><Licao /></Protegida>} />
       <Route path="/desafio/:recorte/:unidade" element={<Protegida><Licao desafio /></Protegida>} />

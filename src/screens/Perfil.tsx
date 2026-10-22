@@ -1,23 +1,22 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDados } from '../state/AppContext';
-import { BannerDemo, BarraNav, Folha, Interruptor, corDe } from '../components/Base';
-import { IcAlvo, IcBroto, IcCalendario, IcChama, IcCheck, IcCoroa, IcEngrenagem, IcEstrela, IcGrupo, IcLampada, IcLivro, IcRaio, IcRevisar, IcSeta, IcSino, IcTrofeu } from '../components/Icones';
-import { CONQUISTAS, METAS, nivel, progressoConquista, sequenciaAtual, temasDoRecorte, chaveTema } from '../domain/regras';
+import { BannerDemo, BarraNav, Folha, Interruptor, Segmentado, corDe } from '../components/Base';
+import { IcAlvo, IcBroto, IcCalendario, IcChama, IcCheck, IcCoroa, IcEngrenagem, IcEstrela, IcIdioma, IcLampada, IcLivro, IcRaio, IcRevisar, IcSeta, IcSino, IcTrofeu } from '../components/Icones';
+import { CONQUISTAS, METAS, areasDoExame, nivel, progressoConquista, recortesVisiveis, sequenciaAtual, temasDoRecorte, chaveTema } from '../domain/regras';
 
 const ICONES: Record<string, (p: { color?: string; size?: number }) => JSX.Element> = {
   seed: IcBroto, flame: (p) => <IcChama size={p.size} />, star: IcEstrela, refresh: IcRevisar, target: IcAlvo, crown: () => <IcCoroa size={30} fill="#fff" stroke="#fff" />, book: IcLivro, calendar: IcCalendario
 };
 
 export default function Perfil() {
-  const { dados, conteudo, atualizar, avisar } = useDados();
-  const [folha, setFolha] = useState<null | 'meta' | 'responsavel' | string>(null);
-  const [email, setEmail] = useState(dados.prefs.responsavel_email ?? '');
+  const { dados, conteudo, atualizar } = useDados();
+  const [folha, setFolha] = useState<null | 'meta' | 'lingua' | string>(null);
   const p = dados.perfil; const prefs = dados.prefs;
   const nv = nivel(p.xp_total);
   const exame = conteudo.exames.find((e) => e.id === prefs.exame_id);
-  const recortes = conteudo.recortes.filter((r) => r.exame_id === prefs.exame_id);
-  const nRecortes = recortes.length;
+  const recortes = useMemo(() => recortesVisiveis(conteudo, prefs.exame_id, prefs.lingua), [conteudo, prefs.exame_id, prefs.lingua]);
+  const areas = useMemo(() => areasDoExame(conteudo, prefs.exame_id), [conteudo, prefs.exame_id]);
   const acerto = p.questoes_feitas ? Math.round((p.acertos_total / p.questoes_feitas) * 100) : 0;
   const temas = Object.values(dados.temas);
   const coroas = [1, 2, 3].map((c) => temas.filter((t) => t.coroa === c).length);
@@ -83,13 +82,13 @@ export default function Perfil() {
           ))}
         </div>
 
-        <section className="card col" style={{ gap: 12 }} aria-label="Domínio por área">
-          <div className="row" style={{ justifyContent: 'space-between' }}><h2 className="h2" style={{ fontSize: 18 }}>Domínio por área</h2>
+        <section className="card col" style={{ gap: 12 }} aria-label="Domínio por matéria">
+          <div className="row" style={{ justifyContent: 'space-between' }}><h2 className="h2" style={{ fontSize: 18 }}>Domínio por matéria</h2>
             <span className="row" style={{ gap: 8, fontSize: 12, fontWeight: 600 }}><span style={{ color: '#8A6608' }}>Ouro {coroas[2]}</span><span style={{ color: '#5F6F76' }}>Prata {coroas[1]}</span><span style={{ color: '#8A4F27' }}>Bronze {coroas[0]}</span></span>
           </div>
           {dominios.map(({ r, pct }) => {
             const c = corDe(r.cor);
-            return <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '92px 1fr 40px', alignItems: 'center', gap: 10 }}>
+            return <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '112px 1fr 40px', alignItems: 'center', gap: 10 }}>
               <span className="small" style={{ fontWeight: 600, color: c.forte }}>{r.nome}</span>
               <span className="bar" style={{ height: 12, background: c.suave }}><span style={{ width: `${pct}%`, background: c.barra }} /></span>
               <span className="small" style={{ fontWeight: 600, textAlign: 'right' }}>{pct}%</span>
@@ -102,8 +101,8 @@ export default function Perfil() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
             {CONQUISTAS.map((c) => {
               const ok = !!dados.conquistas[c.codigo];
-              const meta = c.codigo === 'quatro_areas' ? nRecortes : c.meta;
-              const prog = Math.min(100, (progressoConquista(c.codigo, dados, nRecortes) / meta) * 100);
+              const meta = c.codigo === 'quatro_areas' ? areas.total : c.meta;
+              const prog = Math.min(100, (progressoConquista(c.codigo, dados, areas) / meta) * 100);
               const Ic = ICONES[c.icone] ?? IcTrofeu;
               return (
                 <button key={c.codigo} onClick={() => setFolha(c.codigo)} className="col" style={{ alignItems: 'center', gap: 6, background: 'none', border: 0, cursor: 'pointer', padding: 0 }}>
@@ -121,7 +120,7 @@ export default function Perfil() {
         <section className="col" style={{ gap: 10 }} aria-label="Como você estuda">
           <h2 className="h2" style={{ fontSize: 18 }}>Como você estuda</h2>
           <div className="list-card">
-            <Link to="/prova" className="list-row"><Icone bg="#E1EAFB"><IcLivro color="#2F5DBF" size={20} /></Icone><Linha t="Prova que você vai fazer" s={`${exame?.nome} · língua: ${prefs.lingua}${prefs.data_prova ? ` · prova em ${new Date(prefs.data_prova + 'T12:00').toLocaleDateString('pt-BR')}` : ''}`} /><IcSeta color="var(--text3)" size={18} /></Link>
+            <button className="list-row" onClick={() => setFolha('lingua')}><Icone bg="#E1EAFB"><IcIdioma color="#2F5DBF" size={20} /></Icone><Linha t="Língua estrangeira" s={`${prefs.lingua} · nas lições, na trilha e na revisão`} /><IcSeta color="var(--text3)" size={18} /></button>
             <button className="list-row" onClick={() => setFolha('meta')}><Icone bg="var(--primary-soft)"><IcAlvo color="var(--primary)" size={20} /></Icone><Linha t="Meta diária" s={`${metaAtual.xp} XP por dia · ~${metaAtual.min} min · ${metaAtual.nome}`} /><IcSeta color="var(--text3)" size={18} /></button>
             <div className="list-row col" style={{ alignItems: 'stretch', cursor: 'default' }}>
               <div className="row"><Icone bg="var(--amber-soft)"><IcSino color="#B8781A" size={20} /></Icone><Linha t="Lembrete diário" s={prefs.lembrete_ativo ? `Todo dia às ${prefs.lembrete_hora}` : 'Desligado'} /><Interruptor rotulo="Lembrete diário" ligado={prefs.lembrete_ativo} mudar={lembrete} /></div>
@@ -130,7 +129,6 @@ export default function Perfil() {
               </div>}
             </div>
             <div className="list-row" style={{ cursor: 'default' }}><Icone bg="var(--ok-soft)"><IcLampada color="var(--ok-text)" size={20} /></Icone><Linha t="Explicação de cada questão" s={prefs.explicacao_imediata ? 'Aparece logo depois de responder' : 'Só no resultado e na revisão'} /><Interruptor rotulo="Explicação de cada questão" ligado={prefs.explicacao_imediata} mudar={(v) => salvarPrefs({ explicacao_imediata: v })} /></div>
-            <button className="list-row" onClick={() => setFolha('responsavel')}><Icone bg="var(--lav-soft)"><IcGrupo color="var(--lav)" size={20} /></Icone><Linha t="Responsável" s={prefs.responsavel_email ? `Conectado · ${prefs.responsavel_email}` : 'Opcional: recebe o resumo da semana'} /><IcSeta color="var(--text3)" size={18} /></button>
           </div>
         </section>
       </div>
@@ -142,23 +140,23 @@ export default function Perfil() {
         {METAS.map((m) => <button key={m.xp} className={`alt ${prefs.meta_xp === m.xp ? 'sel' : ''}`} onClick={() => salvarPrefs({ meta_xp: m.xp })}><span className="alt-body" style={{ fontWeight: 600 }}>{m.nome}</span><span className="muted">{m.xp} XP · ~{m.min} min</span></button>)}
         <button className="btn" onClick={() => setFolha(null)}>Salvar</button>
       </Folha>
-      <Folha aberta={folha === 'responsavel'} fechar={() => setFolha(null)} titulo="Responsável">
-        <span className="title" style={{ fontSize: 24 }}>Responsável</span>
-        <p className="small">Se você tem menos de 18 anos, conecte um responsável. Ele recebe só o resumo da semana (tempo de estudo e progresso).</p>
-        <input className="input" type="email" placeholder="email@do.responsavel" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <button className="btn" onClick={async () => { await salvarPrefs({ responsavel_email: email.trim() || null }); setFolha(null); avisar(email.trim() ? 'Responsável conectado.' : 'Responsável removido.'); }}>Salvar</button>
+      <Folha aberta={folha === 'lingua'} fechar={() => setFolha(null)} titulo="Língua estrangeira">
+        <span className="title" style={{ fontSize: 24 }}>Língua estrangeira</span>
+        <p className="small">Escolha a língua que você vai fazer na prova. Ela aparece como matéria no Início e na Trilha.</p>
+        <Segmentado rotulo="Língua estrangeira" valor={prefs.lingua} mudar={(v) => salvarPrefs({ lingua: v })} opcoes={[{ v: 'Inglês', nome: 'Inglês' }, { v: 'Espanhol', nome: 'Espanhol' }]} />
+        <button className="btn" onClick={() => setFolha(null)}>Pronto</button>
       </Folha>
       <Folha aberta={!!conq} fechar={() => setFolha(null)} titulo={conq ? conq.nome : ''}>
         {conq && (() => {
           const ok = dados.conquistas[conq.codigo];
-          const meta = conq.codigo === 'quatro_areas' ? nRecortes : conq.meta;
+          const meta = conq.codigo === 'quatro_areas' ? areas.total : conq.meta;
           const Ic = ICONES[conq.icone] ?? IcTrofeu;
           return <div className="col" style={{ alignItems: 'center', textAlign: 'center', gap: 10 }}>
             <span style={{ width: 96, height: 96, borderRadius: 30, background: ok ? conq.cor : 'var(--line2)', display: 'grid', placeItems: 'center', borderBottom: '6px solid rgba(0,0,0,.15)' }}><Ic color={ok ? '#fff' : '#9AAFAA'} size={46} /></span>
             <span className="title" style={{ fontSize: 22 }}>{conq.nome}</span>
             <span className="small">{conq.descricao}</span>
             <span className="pill" style={{ background: ok ? 'var(--ok-soft)' : 'var(--line2)', color: ok ? 'var(--ok-text)' : 'var(--text2)', height: 28 }}>
-              {ok ? `Conquistada em ${new Date(ok).toLocaleDateString('pt-BR')}` : `Progresso: ${Math.min(meta, progressoConquista(conq.codigo, dados, nRecortes))} de ${meta}`}
+              {ok ? `Conquistada em ${new Date(ok).toLocaleDateString('pt-BR')}` : `Progresso: ${Math.min(meta, progressoConquista(conq.codigo, dados, areas))} de ${meta}`}
             </span>
             <button className="linkbtn" onClick={() => setFolha(null)}>Fechar</button>
           </div>;

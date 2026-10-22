@@ -3,6 +3,7 @@ import type { Repo, Usuario } from './repo';
 import { carregarConteudoLocal } from './repo';
 import type { DadosAluno } from './types';
 import { PREFS_PADRAO } from './types';
+import { VIDAS_MAX } from '../domain/regras';
 
 const K_USER = 'pense:demo:usuario';
 const kDados = (id: string) => `pense:demo:dados:${id}`;
@@ -21,7 +22,7 @@ const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now(
 export function dadosIniciais(u: Usuario): DadosAluno {
   const agora = new Date().toISOString();
   return {
-    perfil: { id: u.id, nome: u.nome || 'Estudante', usuario: null, xp_total: 0, vidas: 5, vidas_atualizadas_em: agora, sequencia_atual: 0, sequencia_recorde: 0, ultimo_dia_meta: null, questoes_feitas: 0, acertos_total: 0, revisoes_concluidas: 0 },
+    perfil: { id: u.id, nome: u.nome || 'Estudante', usuario: null, xp_total: 0, vidas: VIDAS_MAX, vidas_atualizadas_em: agora, sequencia_atual: 0, sequencia_recorde: 0, ultimo_dia_meta: null, questoes_feitas: 0, acertos_total: 0, revisoes_concluidas: 0 },
     prefs: { ...PREFS_PADRAO },
     temas: {}, revisao: {}, xpDia: {}, conquistas: {}, unidades: {}, vistas: [], interessePro: null
   };

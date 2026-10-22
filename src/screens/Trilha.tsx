@@ -1,10 +1,11 @@
 // Trilha: unidades de 6 temas por área/matéria, revisão rápida e mini-simulado no fim.
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useDados } from '../state/AppContext';
 import { BannerDemo, BarraNav, Folha, Stats, corDe } from '../components/Base';
 import { CORES_COROA, IcCheck, IcCoroa, IcLivro, IcLock, IcRevisar, IcEstrela, IcTrofeu, Mascote } from '../components/Icones';
-import { DESAFIO_QTD, NOMES_COROA, chaveTema, revisaoPendente, unidadesDoRecorte, vidasAgora } from '../domain/regras';
+import { SemVidas } from '../components/SemVidas';
+import { DESAFIO_QTD, NOMES_COROA, chaveTema, recortesVisiveis, revisaoPendente, unidadesDoRecorte, vidasAgora } from '../domain/regras';
 import type { InfoTema } from '../domain/regras';
 
 type No = { tipo: 'feito' | 'atual' | 'bloqueado' | 'revisao' | 'desafio'; tema?: InfoTema; coroa?: number };
@@ -13,7 +14,7 @@ const OFF = [0, 60, 90, 60, 0, -60, -90, -60];
 export default function Trilha() {
   const { dados, conteudo } = useDados();
   const nav = useNavigate();
-  const recortes = conteudo.recortes.filter((r) => r.exame_id === dados.prefs.exame_id);
+  const recortes = useMemo(() => recortesVisiveis(conteudo, dados.prefs.exame_id, dados.prefs.lingua), [conteudo, dados.prefs.exame_id, dados.prefs.lingua]);
   const [recId, setRecId] = useState(recortes[0]?.id);
   const [sel, setSel] = useState<No | null>(null);
   const recorte = recortes.find((r) => r.id === recId) ?? recortes[0];
@@ -75,7 +76,7 @@ export default function Trilha() {
         </section>
 
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '10px 0' }}>
-          <div style={{ position: 'absolute', right: 6, top: 300 }}><Mascote largura={92} /></div>
+          {nos.length > 3 && <div style={{ position: 'absolute', right: 6, top: Math.min(300, (nos.length - 3) * 100) }}><Mascote largura={92} /></div>}
           {nos.map((n, i) => {
             const e = estilo(n);
             return (
@@ -120,11 +121,11 @@ export default function Trilha() {
             <span className="kicker" style={{ color: cor.forte }}>{recorte.nome} · {t.total} questões{sel.tipo === 'feito' ? ` · Coroa ${NOMES_COROA[sel.coroa ?? 1]}` : ''}</span>
             <span className="title" style={{ fontSize: 24 }}>{t.assunto}</span>
             {sel.tipo === 'bloqueado' ? <p className="muted">Conclua o tema anterior para liberar.</p>
-              : vidas === 0 ? <><p className="small">Sem vidas agora. Revise para ganhar uma.</p><Link to="/revisar" className="btn lav">Ir para a revisão</Link></>
+              : vidas === 0 ? <SemVidas esperar={() => setSel(null)} />
               : <button className="btn" onClick={() => nav(`/licao/${encodeURIComponent(t.recorte_id)}/${encodeURIComponent(t.assunto)}`)}>{sel.tipo === 'feito' ? 'Praticar de novo' : 'Começar'}</button>}
           </>;
         })()}
-        <button className="linkbtn" onClick={() => setSel(null)}>Agora não</button>
+        {!(sel?.tema && sel.tipo !== 'bloqueado' && vidas === 0) && <button className="linkbtn" onClick={() => setSel(null)}>Agora não</button>}
       </Folha>
     </div>
   );
