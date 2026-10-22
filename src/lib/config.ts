@@ -12,4 +12,4 @@ export const supabase = supabaseConfigurado
   ? createClient(url!, chave!, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' } })
   : null;
 
-export const repo: Repo = supabase ? criarSupabaseRepo(supabase) : demoRepo;
+export const repo: Repo = supabase ? criarSupabaseRepo(supabase, url!, chave!) : demoRepo;

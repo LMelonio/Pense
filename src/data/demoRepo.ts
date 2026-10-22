@@ -32,6 +32,7 @@ export const demoRepo: Repo = {
   carregarConteudo: carregarConteudoLocal,
   async usuarioAtual() { return ler<Usuario>(K_USER); },
   aoMudarUsuario(cb) { ouvintes.add(cb); return () => { ouvintes.delete(cb); }; },
+  async provedores() { return { google: false, email: true, anonimo: true }; },
   async entrarEmail(email) {
     const contas = ler<Record<string, Usuario>>('pense:demo:contas') ?? {};
     const u = contas[email.toLowerCase()];
@@ -40,21 +41,25 @@ export const demoRepo: Repo = {
   },
   async cadastrarEmail(email, _senha, nome) {
     const contas = ler<Record<string, Usuario>>('pense:demo:contas') ?? {};
-    const u: Usuario = contas[email.toLowerCase()] ?? { id: novoId(), email, anonimo: false, nome };
+    const u: Usuario = contas[email.toLowerCase()] ?? { id: novoId(), email, anonimo: false, nome, provedor: 'email' };
     contas[email.toLowerCase()] = u; gravar('pense:demo:contas', contas); gravar(K_USER, u); avisar(u);
     return { confirmarEmail: false };
   },
   async entrarGoogle() { throw new Error('No modo demonstração o login com Google fica desligado. Configure o Supabase para usar.'); },
   async entrarAnonimo() {
-    const u: Usuario = { id: novoId(), email: null, anonimo: true, nome: 'Estudante' };
+    const u: Usuario = { id: novoId(), email: null, anonimo: true, nome: 'Estudante', provedor: 'anonimo' };
     gravar(K_USER, u); avisar(u);
   },
   async vincularEmail(email) {
-    const u = ler<Usuario>(K_USER); if (!u) return;
-    const nu = { ...u, email, anonimo: false };
+    const u = ler<Usuario>(K_USER); if (!u) return { confirmarEmail: false };
+    const nu: Usuario = { ...u, email, anonimo: false, provedor: 'email' };
     const contas = ler<Record<string, Usuario>>('pense:demo:contas') ?? {};
     contas[email.toLowerCase()] = nu; gravar('pense:demo:contas', contas); gravar(K_USER, nu); avisar(nu);
+    return { confirmarEmail: false };
   },
+  async vincularGoogle() { throw new Error('No modo demonstração o login com Google fica desligado. Configure o Supabase para usar.'); },
+  async recuperarSenha() { throw new Error('No modo demonstração não há envio de e-mail. Crie a conta de novo neste navegador.'); },
+  async definirSenha() { /* no modo demonstração a senha não é conferida */ },
   async sair() { localStorage.removeItem(K_USER); avisar(null); },
   async carregarDados(u) {
     const d = ler<DadosAluno>(kDados(u.id));

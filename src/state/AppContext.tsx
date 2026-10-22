@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { repo } from '../lib/config';
+import { erroDoRetorno, limparRetornoDaUrl } from '../data/repo';
 import type { Mudancas, Usuario } from '../data/repo';
 import type { Conteudo, DadosAluno } from '../data/types';
 
@@ -72,12 +73,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setConteudo(c);
       await carregarUsuario(u);
       setErro(null);
+      // Já logado e voltou com erro na URL (ex.: a conta Google já é de outro usuário). Sem login, a tela Entrar mostra.
+      const erroUrl = u && erroDoRetorno();
+      if (erroUrl) { avisar(erroUrl); limparRetornoDaUrl(); }
     } catch (e) {
       setErro((e as Error).message);
     } finally {
       setCarregando(false);
     }
-  }, [carregarUsuario]);
+  }, [carregarUsuario, avisar]);
 
   useEffect(() => {
     recarregar();
@@ -97,6 +101,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try { await repo.salvar(novo, m); } catch (e) { avisar('Não deu para salvar agora: ' + (e as Error).message); }
     return novo;
   }, [avisar]);
+
+  // Visitante que salvou o progresso com o Google: o perfil passa a usar o nome da conta Google.
+  const nomeConta = usuario && !usuario.anonimo && usuario.nome && usuario.nome !== 'Estudante' ? usuario.nome : null;
+  useEffect(() => {
+    if (nomeConta && dados?.perfil.nome === 'Estudante') atualizar((d) => ({ ...d, perfil: { ...d.perfil, nome: nomeConta } }), { perfil: true });
+  }, [nomeConta, dados?.perfil.nome, atualizar]);
 
   return (
     <AppCtx.Provider value={{ conteudo, usuario, dados, carregando, erro, atualizar, avisar, recarregar }}>

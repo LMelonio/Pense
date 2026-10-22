@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { IcChama, IcCoracao, IcHome, IcPerfil, IcRaio, IcRevisar, IcTrilha } from './Icones';
 import { useDados } from '../state/AppContext';
@@ -79,6 +80,16 @@ export function Segmentado<T extends string>({ opcoes, valor, mudar, rotulo }: {
   return (
     <div className="seg" role="radiogroup" aria-label={rotulo} style={{ gridTemplateColumns: `repeat(${opcoes.length}, 1fr)` }}>
       {opcoes.map((o) => <button key={o.v} type="button" role="radio" aria-checked={valor === o.v} onClick={() => mudar(o.v)}>{o.nome}</button>)}
+    </div>
+  );
+}
+
+export function CampoSenha({ valor, mudar, rotulo = 'Senha', nova = false }: { valor: string; mudar: (v: string) => void; rotulo?: string; nova?: boolean }) {
+  const [ver, setVer] = useState(false);
+  return (
+    <div className="campo-senha">
+      <input className="input" type={ver ? 'text' : 'password'} placeholder={rotulo} aria-label={rotulo} value={valor} onChange={(e) => mudar(e.target.value)} autoComplete={nova ? 'new-password' : 'current-password'} />
+      <button type="button" className="linkbtn" onClick={() => setVer(!ver)} aria-pressed={ver}>{ver ? 'Ocultar' : 'Mostrar'}</button>
     </div>
   );
 }

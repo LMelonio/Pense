@@ -12,6 +12,8 @@ import Revisar from './screens/Revisar';
 import Refazer from './screens/Refazer';
 import Perfil from './screens/Perfil';
 import Configuracoes from './screens/Configuracoes';
+import NovaSenha from './screens/NovaSenha';
+import { voltouDaRecuperacao } from './data/repo';
 
 function Carregando({ texto = 'Carregando…' }: { texto?: string }) {
   return (
@@ -49,7 +51,8 @@ function Rotas() {
       <Route path="/refazer" element={<Protegida><Refazer /></Protegida>} />
       <Route path="/perfil" element={<Protegida><Perfil /></Protegida>} />
       <Route path="/config" element={<Protegida><Configuracoes /></Protegida>} />
-      <Route path="*" element={<Navigate to="/inicio" replace />} />
+      <Route path="/nova-senha" element={<Protegida permitirSemOnboarding><NovaSenha /></Protegida>} />
+      <Route path="*" element={<Navigate to={voltouDaRecuperacao() ? '/nova-senha' : '/inicio'} replace />} />
     </Routes>
   );
 }

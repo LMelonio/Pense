@@ -1,17 +1,34 @@
 // Implementação com Supabase (Auth + Postgres com RLS). Tabelas em supabase/migrations.
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import type { Mudancas, Repo, Usuario } from './repo';
-import { carregarConteudoLocal } from './repo';
+import type { Mudancas, Provedores, Repo, Usuario } from './repo';
+import { carregarConteudoLocal, traduzirErro, urlBase } from './repo';
 import type { Conteudo, DadosAluno, Questao } from './types';
 import { PREFS_PADRAO } from './types';
 import { dadosIniciais } from './demoRepo';
 
-const paraUsuario = (u: User | null | undefined): Usuario | null =>
-  u ? { id: u.id, email: u.email ?? null, anonimo: !!u.is_anonymous, nome: (u.user_metadata?.nome as string) ?? null } : null;
+function paraUsuario(u: User | null | undefined): Usuario | null {
+  if (!u) return null;
+  const meta = u.user_metadata ?? {};
+  const provs = (u.app_metadata?.providers as string[] | undefined) ?? [];
+  return {
+    id: u.id,
+    email: u.email || null,
+    anonimo: !!u.is_anonymous,
+    // nome da conta Google primeiro: o visitante que liga o Google tem nome = 'Estudante' nos metadados
+    nome: (meta.full_name ?? meta.name ?? meta.nome ?? null) as string | null,
+    provedor: u.is_anonymous ? 'anonimo' : provs.includes('google') ? 'google' : 'email'
+  };
+}
 
 function falhou(error: { message: string } | null, onde: string) {
   if (error) throw new Error(`${onde}: ${error.message}`);
 }
+
+function erroAuth(error: { message: string } | null) {
+  if (error) throw new Error(traduzirErro(error.message));
+}
+
+const PROVEDORES_RESERVA: Provedores = { google: false, email: true, anonimo: true };
 
 async function todasAsLinhas<T>(consulta: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
   const linhas: T[] = [];
@@ -24,9 +41,19 @@ async function todasAsLinhas<T>(consulta: (de: number, ate: number) => PromiseLi
   return linhas;
 }
 
-export function criarSupabaseRepo(sb: SupabaseClient): Repo {
+export function criarSupabaseRepo(sb: SupabaseClient, url: string, chave: string): Repo {
+  let provedores: Promise<Provedores> | null = null;
   return {
     modo: 'supabase',
+
+    // Lê do Auth quais logins estão ligados, para não mandar o aluno a uma página de erro do Supabase.
+    provedores() {
+      provedores ??= fetch(`${url}/auth/v1/settings`, { headers: { apikey: chave } })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((j) => ({ google: !!j.external?.google, email: !!j.external?.email, anonimo: !!j.external?.anonymous_users }))
+        .catch(() => { provedores = null; return PROVEDORES_RESERVA; });
+      return provedores;
+    },
 
     async carregarConteudo(): Promise<Conteudo> {
       const [ex, rc, tb] = await Promise.all([
@@ -63,24 +90,43 @@ export function criarSupabaseRepo(sb: SupabaseClient): Repo {
     },
     async entrarEmail(email, senha) {
       const { error } = await sb.auth.signInWithPassword({ email, password: senha });
-      if (error) throw new Error(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
+      erroAuth(error);
     },
     async cadastrarEmail(email, senha, nome) {
-      const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { nome }, emailRedirectTo: location.href.split('#')[0] } });
-      if (error) throw new Error(error.message);
+      const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { nome }, emailRedirectTo: urlBase() } });
+      erroAuth(error);
       return { confirmarEmail: !data.session };
     },
     async entrarGoogle() {
-      const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href.split('#')[0] } });
-      if (error) throw new Error(error.message);
+      const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: urlBase(), queryParams: { prompt: 'select_account' } } });
+      erroAuth(error);
     },
     async entrarAnonimo() {
       const { error } = await sb.auth.signInAnonymously({ options: { data: { nome: 'Estudante' } } });
-      if (error) throw new Error(error.message.includes('Anonymous') ? 'Ative "Anonymous sign-ins" no Supabase (Authentication > Providers).' : error.message);
+      erroAuth(error);
     },
     async vincularEmail(email, senha) {
-      const { error } = await sb.auth.updateUser({ email, password: senha });
-      if (error) throw new Error(error.message);
+      // Primeiro o e-mail, depois a senha: o Supabase só aceita senha depois que o visitante tem e-mail.
+      const { data, error } = await sb.auth.updateUser({ email }, { emailRedirectTo: urlBase() });
+      erroAuth(error);
+      if (data.user?.new_email) return { confirmarEmail: true };
+      const { error: e2 } = await sb.auth.updateUser({ password: senha });
+      erroAuth(e2);
+      return { confirmarEmail: false };
+    },
+    async vincularGoogle() {
+      // Precisa de "Manual linking" ligado no Supabase. Volta para o app com a mesma conta, agora ligada ao Google.
+      const { error } = await sb.auth.linkIdentity({ provider: 'google', options: { redirectTo: urlBase() } });
+      erroAuth(error);
+    },
+    async recuperarSenha(email) {
+      // ?recuperar=1 avisa o app, na volta, para abrir a tela de nova senha (no fluxo PKCE o Supabase não manda PASSWORD_RECOVERY).
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: `${urlBase()}?recuperar=1` });
+      erroAuth(error);
+    },
+    async definirSenha(senha) {
+      const { error } = await sb.auth.updateUser({ password: senha });
+      erroAuth(error);
     },
     async sair() { await sb.auth.signOut(); },
 
@@ -149,8 +195,8 @@ export function criarSupabaseRepo(sb: SupabaseClient): Repo {
 
     async excluirConta() {
       const { error } = await sb.rpc('excluir_minha_conta');
-      falhou(error, 'Excluir conta');
-      await sb.auth.signOut();
+      erroAuth(error);
+      await sb.auth.signOut({ scope: 'local' }); // o usuário já não existe no servidor
     }
   };
 }
