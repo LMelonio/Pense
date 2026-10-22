@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { repo } from '../lib/config';
 import { erroDoRetorno, limparRetornoDaUrl, voltouDaRecuperacao } from '../data/repo';
+import type { Provedores } from '../data/repo';
 import { IcGoogle, Mascote } from '../components/Icones';
 import { useApp } from '../state/AppContext';
 import { BannerDemo, CampoSenha } from '../components/Base';
@@ -24,10 +25,11 @@ export default function Entrar() {
   const [erro, setErro] = useState<string | null>(erroInicial);
   const [enviado, setEnviado] = useState(false);
   const [ocupado, setOcupado] = useState(false);
+  const [provs, setProvs] = useState<Provedores | null>(null);
 
   useEffect(() => {
     if (location.search) limparRetornoDaUrl();
-    repo.provedores(); // já deixa a consulta pronta para o primeiro clique
+    repo.provedores().then(setProvs); // o botão do Google só aparece com o provedor ligado no Supabase
   }, []);
 
   async function rodar(f: () => Promise<unknown>) {
@@ -86,7 +88,7 @@ export default function Entrar() {
 
         {modo === 'inicio' ? (
           <div className="col" style={{ gap: 12 }}>
-            <button className="btn google" disabled={ocupado} onClick={google}><IcGoogle />Continuar com Google</button>
+            {provs?.google && <button className="btn google" disabled={ocupado} onClick={google}><IcGoogle />Continuar com Google</button>}
             <button className="btn" disabled={ocupado} onClick={() => trocar('entrar')}>Entrar com e-mail</button>
             <div className="divisor">ou</div>
             <button className="btn ghost" disabled={ocupado} onClick={semLogin}>Entrar sem login</button>

@@ -1,9 +1,10 @@
-// Resultado: com erros (resumo) ou lição perfeita (subiu de coroa).
+// Resultado: lição perfeita (subiu de coroa), resumo com erros, vidas esgotadas ou lição interrompida.
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useDados } from '../state/AppContext';
 import { CORES_COROA, IcChama, IcCoroa, IcRaio, IcRevisar, Mascote } from '../components/Icones';
 import { Anel } from '../components/Base';
 import { CONQUISTAS, NOMES_COROA, hoje, nivel, sequenciaAtual } from '../domain/regras';
+import { plural } from '../lib/texto';
 import type { EstadoResultado } from './Licao';
 
 const CORES_CONFETE = ['#7CCFC2', '#6A5AE0', '#F2A93B', '#E5534B', '#4C7BD9', '#3FA37A'];
@@ -50,7 +51,7 @@ export default function Resultado() {
             </div>
             <div className="bar" style={{ height: 12, background: 'rgba(255,255,255,.18)' }}><span style={{ width: `${nv.pct}%`, background: '#F2C14E' }} /></div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <span style={{ background: 'rgba(255,255,255,.1)', borderRadius: 14, padding: '10px 12px' }} className="small"><b className="big" style={{ display: 'block', fontSize: 18 }}>{seq} dia{seq === 1 ? '' : 's'}</b>de sequência</span>
+              <span style={{ background: 'rgba(255,255,255,.1)', borderRadius: 14, padding: '10px 12px' }} className="small"><b className="big" style={{ display: 'block', fontSize: 18 }}>{plural(seq, 'dia', 'dias')}</b>de sequência</span>
               <span style={{ background: 'rgba(255,255,255,.1)', borderRadius: 14, padding: '10px 12px' }} className="small"><b className="big" style={{ display: 'block', fontSize: 18 }}>+5 XP</b>bônus sem erros</span>
             </div>
             {conquistas.length > 0 && <span className="small">Nova conquista: <b>{conquistas.join(', ')}</b></span>}
@@ -61,15 +62,27 @@ export default function Resultado() {
     );
   }
 
+  // Título e humor de acordo com como a lição terminou: só comemora quando houve acerto.
+  const comemorar = r.acertos > 0 && r.motivo !== 'vidas' && (r.tipo === 'licao' || !!r.aprovado);
+  const titulo = r.motivo === 'vidas' ? 'Suas vidas acabaram'
+    : r.tipo === 'desafio' ? (r.aprovado ? 'Desafio vencido!' : 'Quase lá!')
+    : r.acertos === 0 ? 'Não foi dessa vez'
+    : r.motivo === 'saiu' ? 'Lição interrompida'
+    : 'Lição concluída!';
+  const aviso = r.motivo === 'vidas' ? 'A lição parou aqui. As vidas voltam com o tempo, com um anúncio ou com o Pense Pro.'
+    : r.tipo === 'desafio' ? (r.aprovado ? 'A próxima unidade da trilha foi liberada.' : 'Acerte 7 de 10 para liberar a próxima unidade. Tente de novo quando quiser.')
+    : r.acertos === 0 ? 'Leia as explicações na revisão de amanhã e tente de novo.'
+    : null;
+
   return (
     <div className="app">
       <div className="screen" style={{ position: 'relative', paddingTop: 30 }}>
-        <Confete />
+        {comemorar && <Confete />}
         <div className="col" style={{ alignItems: 'center', gap: 6 }}>
-          <Mascote largura={170} humor="comemorando" faisca />
-          <h1 style={{ fontSize: 32 }}>{r.tipo === 'desafio' ? (r.aprovado ? 'Desafio vencido!' : 'Quase lá!') : 'Lição concluída!'}</h1>
-          <p className="muted" style={{ fontSize: 15 }}>{r.tema} · {r.total} questões</p>
-          {r.tipo === 'desafio' && <p className="small" style={{ textAlign: 'center' }}>{r.aprovado ? 'A próxima unidade da trilha foi liberada.' : 'Acerte 7 de 10 para liberar a próxima unidade. Tente de novo quando quiser.'}</p>}
+          <Mascote largura={170} humor={comemorar ? 'comemorando' : 'triste'} faisca={comemorar} />
+          <h1 style={{ fontSize: 32, textAlign: 'center' }}>{titulo}</h1>
+          <p className="muted" style={{ fontSize: 15 }}>{r.tema} · {plural(r.total, 'questão', 'questões')}</p>
+          {aviso && <p className="small" style={{ textAlign: 'center' }}>{aviso}</p>}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {[['XP', `+${r.xp}`, '#6A5AE0', '#4B3DB8'], ['Acertos', `${r.acertos}/${r.total}`, '#3FA37A', '#1C7A52'], ['Tempo', `${min}:${seg}`, '#4C7BD9', '#2F5DBF']].map(([n, v, borda, cor]) => (
@@ -82,14 +95,14 @@ export default function Resultado() {
         <div className="card row" style={{ gap: 14 }}>
           <Anel pct={Math.min(100, (xpHoje / meta) * 100)} tam={48} esp={6} cor="#F2A93B" trilho="var(--amber-soft)"><IcChama size={20} /></Anel>
           <div className="col" style={{ gap: 2 }}>
-            <span className="h2" style={{ fontSize: 17 }}>{xpHoje >= meta ? `Meta do dia batida · ${seq} dia${seq === 1 ? '' : 's'}` : `Meta do dia: ${xpHoje}/${meta} XP`}</span>
+            <span className="h2" style={{ fontSize: 17 }}>{xpHoje >= meta ? `Meta do dia batida · ${plural(seq, 'dia', 'dias')}` : `Meta do dia: ${xpHoje}/${meta} XP`}</span>
             <span className="muted">{xpHoje >= meta ? 'Sua sequência continua!' : `Faltam ${meta - xpHoje} XP para a meta.`}</span>
           </div>
         </div>
         {r.erros.length > 0 && (
           <div className="card soft-lav row" style={{ gap: 12 }}>
             <IcRevisar color="var(--lav)" />
-            <span className="small spacer"><b>{r.erros.length} questão{r.erros.length > 1 ? 'ões' : ''}</b> volta{r.erros.length > 1 ? 'm' : ''} amanhã na Revisão do dia.</span>
+            <span className="small spacer"><b>{plural(r.erros.length, 'questão', 'questões')}</b> {r.erros.length === 1 ? 'volta' : 'voltam'} amanhã na Revisão do dia.</span>
           </div>
         )}
         {conquistas.length > 0 && <div className="card soft-amber small">Nova conquista: <b>{conquistas.join(', ')}</b></div>}

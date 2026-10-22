@@ -12,7 +12,7 @@ export function CartaoPro() {
   const [plano, setPlano] = useState<'mensal' | 'anual'>('anual');
   return (
     <div className="col" style={{ background: 'var(--lav)', color: '#fff', borderRadius: 22, padding: 16, gap: 12 }}>
-      <div className="row"><span className="title" style={{ fontSize: 22 }}>Pense Pro</span><span className="pill" style={{ background: 'rgba(255,255,255,.2)' }}>Em breve</span></div>
+      <div className="row"><span className="title" style={{ fontSize: 22 }}>Pense Pro</span><span className="pill" style={{ background: 'var(--lav-dark)' }}>Em breve</span></div>
       <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, lineHeight: 1.5 }}>
         <li>Vidas ilimitadas, sem anúncios</li><li>Simulados completos, com o tempo da prova</li><li>Correção de redação com IA</li><li>Relatório de desempenho</li>
       </ul>

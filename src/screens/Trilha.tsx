@@ -1,11 +1,12 @@
-// Trilha: unidades de 6 temas por área/matéria, revisão rápida e mini-simulado no fim.
+// Trilha: unidades de 6 subconteúdos por matéria, revisão rápida e mini-simulado no fim.
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDados } from '../state/AppContext';
 import { BannerDemo, BarraNav, Folha, Stats, corDe } from '../components/Base';
 import { CORES_COROA, IcCheck, IcCoroa, IcLivro, IcLock, IcRevisar, IcEstrela, IcTrofeu, Mascote } from '../components/Icones';
 import { SemVidas } from '../components/SemVidas';
-import { DESAFIO_QTD, NOMES_COROA, chaveTema, recortesVisiveis, revisaoPendente, unidadesDoRecorte, vidasAgora } from '../domain/regras';
+import { DESAFIO_QTD, NOMES_COROA, chaveTema, desafioLiberado, recortesVisiveis, revisaoPendente, temaFeito, unidadesDoRecorte, vidasAgora } from '../domain/regras';
+import { plural } from '../lib/texto';
 import type { InfoTema } from '../domain/regras';
 
 type No = { tipo: 'feito' | 'atual' | 'bloqueado' | 'revisao' | 'desafio'; tema?: InfoTema; coroa?: number };
@@ -23,7 +24,7 @@ export default function Trilha() {
   let atual = unidades.findIndex((_, i) => !dados.unidades[`${recorte?.id}|${i}`]);
   if (atual < 0) atual = unidades.length - 1;
   const temas = unidades[atual] ?? [];
-  const feitos = temas.filter((t) => (dados.temas[chaveTema(t.recorte_id, t.assunto)]?.licoes ?? 0) > 0).length;
+  const feitos = temas.filter((t) => temaFeito(dados, t)).length;
   const temErrosNaUnidade = revisaoPendente(dados).some((r) => {
     const q = conteudo.questoes.find((x) => x.id === r.questao_id);
     return q && q.recorte_id === recorte?.id && temas.some((t) => t.assunto === q.assunto);
@@ -33,20 +34,20 @@ export default function Trilha() {
   let achouAtual = false;
   temas.forEach((t, i) => {
     const p = dados.temas[chaveTema(t.recorte_id, t.assunto)];
-    if (p && p.licoes > 0) nos.push({ tipo: 'feito', tema: t, coroa: p.coroa });
+    if (temaFeito(dados, t)) nos.push({ tipo: 'feito', tema: t, coroa: p?.coroa });
     else if (!achouAtual) { nos.push({ tipo: 'atual', tema: t }); achouAtual = true; }
     else nos.push({ tipo: 'bloqueado', tema: t });
     if (i === 2) nos.push({ tipo: 'revisao' });
   });
   nos.push({ tipo: 'desafio' });
-  const desafioLiberado = feitos === temas.length;
+  const desafioAberto = !!recorte && desafioLiberado(dados, unidades, recorte.id, atual);
   const { vidas } = vidasAgora(dados.perfil);
 
   const estilo = (n: No) => {
     if (n.tipo === 'feito') return { bg: cor.barra, borda: cor.forte, ic: <IcCheck color="#fff" size={30} /> };
     if (n.tipo === 'atual') return { bg: cor.forte, borda: '#0b2a4f33', ic: <IcEstrela color="#fff" size={30} /> };
     if (n.tipo === 'revisao') return { bg: '#6A5AE0', borda: '#4B3DB8', ic: <IcRevisar color="#fff" size={30} /> };
-    if (n.tipo === 'desafio') return desafioLiberado ? { bg: '#F2A93B', borda: '#B8781A', ic: <IcTrofeu color="#fff" size={30} /> } : { bg: 'var(--line2)', borda: 'var(--line)', ic: <IcTrofeu color="#9AAFAA" size={30} /> };
+    if (n.tipo === 'desafio') return desafioAberto ? { bg: '#F2A93B', borda: '#B8781A', ic: <IcTrofeu color="#fff" size={30} /> } : { bg: 'var(--line2)', borda: 'var(--line)', ic: <IcTrofeu color="#9AAFAA" size={30} /> };
     return { bg: 'var(--line2)', borda: 'var(--line)', ic: <IcLock color="#9AAFAA" size={28} /> };
   };
 
@@ -72,7 +73,7 @@ export default function Trilha() {
             </div>
             <span style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(255,255,255,.18)', display: 'grid', placeItems: 'center' }}><IcLivro color="#fff" /></span>
           </div>
-          <div className="row"><span className="bar spacer" style={{ height: 10, background: 'rgba(255,255,255,.22)' }}><span style={{ width: `${(feitos / Math.max(1, temas.length)) * 100}%`, background: '#fff' }} /></span><span className="small" style={{ fontWeight: 600 }}>{feitos} de {temas.length} temas</span></div>
+          <div className="row"><span className="bar spacer" style={{ height: 10, background: 'rgba(255,255,255,.22)' }}><span style={{ width: `${(feitos / Math.max(1, temas.length)) * 100}%`, background: '#fff' }} /></span><span className="small" style={{ fontWeight: 600 }}>{feitos} de {plural(temas.length, 'tema', 'temas')}</span></div>
         </section>
 
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '10px 0' }}>
@@ -113,12 +114,12 @@ export default function Trilha() {
             <span className="kicker">Desafio da unidade</span>
             <span className="title" style={{ fontSize: 24 }}>Mini-simulado</span>
             <p className="small">Até {DESAFIO_QTD} questões dos temas da unidade. Acerte 70% para liberar a próxima unidade. Não gasta vidas.</p>
-            {desafioLiberado ? <button className="btn" onClick={() => nav(`/desafio/${encodeURIComponent(recorte.id)}/${atual}`)}>Começar desafio</button>
+            {desafioAberto ? <button className="btn" onClick={() => nav(`/desafio/${encodeURIComponent(recorte.id)}/${atual}`)}>Começar desafio</button>
               : <p className="muted">Faça todos os temas da unidade para liberar.</p>}
           </>;
           const t = sel.tema!;
           return <>
-            <span className="kicker" style={{ color: cor.forte }}>{recorte.nome} · {t.total} questões{sel.tipo === 'feito' ? ` · Coroa ${NOMES_COROA[sel.coroa ?? 1]}` : ''}</span>
+            <span className="kicker" style={{ color: cor.forte }}>{recorte.nome} · {plural(t.total, 'questão', 'questões')}{sel.tipo === 'feito' ? ` · Coroa ${NOMES_COROA[sel.coroa ?? 1]}` : ''}</span>
             <span className="title" style={{ fontSize: 24 }}>{t.assunto}</span>
             {sel.tipo === 'bloqueado' ? <p className="muted">Conclua o tema anterior para liberar.</p>
               : vidas === 0 ? <SemVidas esperar={() => setSel(null)} />

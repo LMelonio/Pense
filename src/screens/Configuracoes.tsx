@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp, useDados } from '../state/AppContext';
 import { repo, supabaseConfigurado } from '../lib/config';
@@ -23,6 +23,9 @@ export default function Configuracoes() {
   const [ocupado, setOcupado] = useState(false);
   const [baixando, setBaixando] = useState<number | null>(null);
 
+  const [google, setGoogle] = useState(false);
+  useEffect(() => { repo.provedores().then((p) => setGoogle(p.google)); }, []);
+
   const salvar = (m: Partial<Preferencias>) => atualizar((d) => ({ ...d, prefs: { ...d.prefs, ...m } }), { prefs: true });
   const visitante = !!usuario?.anonimo;
   const acesso = visitante ? 'Sem login (visitante)' : `${usuario?.provedor === 'google' ? 'Google' : 'E-mail'}${usuario?.email ? ` · ${usuario.email}` : ''}`;
@@ -38,7 +41,7 @@ export default function Configuracoes() {
     setOcupado(true);
     try {
       const r = await repo.vincularEmail(email.trim(), senha);
-      if (nomeConta.trim()) await atualizar((d) => ({ ...d, perfil: { ...d.perfil, nome: nomeConta.trim() } }), { perfil: true });
+      if (nomeConta.trim()) await atualizar((d) => ({ ...d, perfil: { ...d.perfil, nome: nomeConta.trim().slice(0, 40) } }), { nome: true });
       setVincular(false); setSenha('');
       avisar(r.confirmarEmail ? 'Enviamos um link para confirmar o seu e-mail.' : 'Pronto! Agora você entra com este e-mail e senha.');
     } catch (e) {
@@ -82,7 +85,7 @@ export default function Configuracoes() {
             {visitante && (
               <div className="list-row col" style={{ alignItems: 'stretch', cursor: 'default', gap: 10 }}>
                 <span className="small" style={{ color: 'var(--text2)' }}>Salve seu progresso numa conta para não perder nada ao trocar de aparelho.</span>
-                <button className="btn google sm" onClick={salvarComGoogle}><IcGoogle size={18} />Salvar com Google</button>
+                {google && <button className="btn google sm" onClick={salvarComGoogle}><IcGoogle size={18} />Salvar com Google</button>}
                 <button className="btn sm" onClick={() => setVincular(true)}>Salvar com e-mail</button>
               </div>
             )}
@@ -142,7 +145,7 @@ export default function Configuracoes() {
       <Folha aberta={editarNome} fechar={() => setEditarNome(false)} titulo="Seu nome">
         <span className="title" style={{ fontSize: 24 }}>Seu nome</span>
         <input className="input" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={40} />
-        <button className="btn" onClick={async () => { await atualizar((d) => ({ ...d, perfil: { ...d.perfil, nome: nome.trim() || 'Estudante' } }), { perfil: true }); setEditarNome(false); }}>Salvar</button>
+        <button className="btn" onClick={async () => { await atualizar((d) => ({ ...d, perfil: { ...d.perfil, nome: nome.trim().slice(0, 40) || 'Estudante' } }), { nome: true }); setEditarNome(false); }}>Salvar</button>
       </Folha>
       <Folha aberta={vincular} fechar={() => setVincular(false)} titulo="Salvar progresso">
         <span className="title" style={{ fontSize: 24 }}>Salvar seu progresso</span>
@@ -156,7 +159,7 @@ export default function Configuracoes() {
         <span className="title" style={{ fontSize: 24 }}>Sair sem salvar?</span>
         <p className="small">Você entrou sem login. Se sair agora, este progresso é apagado e não dá para recuperar. Salve numa conta antes, se quiser continuar depois.</p>
         <button className="btn" onClick={() => { setConfirmarSair(false); setVincular(true); }}>Salvar com e-mail</button>
-        <button className="btn google" onClick={() => { setConfirmarSair(false); salvarComGoogle(); }}><IcGoogle />Salvar com Google</button>
+        {google && <button className="btn google" onClick={() => { setConfirmarSair(false); salvarComGoogle(); }}><IcGoogle />Salvar com Google</button>}
         <button className="linkbtn" style={{ color: 'var(--coral-dark)' }} onClick={sair}>Sair e apagar o progresso</button>
       </Folha>
     </div>

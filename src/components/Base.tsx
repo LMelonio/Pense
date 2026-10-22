@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { IcChama, IcCoracao, IcHome, IcPerfil, IcRaio, IcRevisar, IcTrilha } from './Icones';
 import { useDados } from '../state/AppContext';
@@ -8,7 +8,7 @@ import { supabaseConfigurado } from '../lib/config';
 
 export const CORES_RECORTE: Record<string, { forte: string; suave: string; barra: string }> = {
   mt: { forte: '#2F5DBF', suave: '#E1EAFB', barra: '#4C7BD9' },
-  lc: { forte: '#B44E25', suave: '#FCE7DD', barra: '#E07A4F' },
+  lc: { forte: '#A2441F', suave: '#FCE7DD', barra: '#E07A4F' },
   ch: { forte: '#8A6608', suave: '#FBF0D3', barra: '#D8A93B' },
   cn: { forte: '#1C7A52', suave: '#DDF2E7', barra: '#3FA37A' },
   lav: { forte: '#4B3DB8', suave: '#ECE9FF', barra: '#6A5AE0' }
@@ -59,12 +59,47 @@ export function Anel({ pct, tam = 72, esp = 9, cor = '#2BA28F', trilho = 'var(--
   );
 }
 
+const FOCAVEIS = 'button:not([disabled]), a[href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
+const dialogosAbertos: object[] = []; // só o do topo responde ao teclado (ex.: anúncio aberto de dentro de uma folha)
+
+/** Prende o foco dentro do elemento enquanto aberto, fecha com Esc e devolve o foco ao fechar. */
+export function useDialogo(aberto: boolean, fechar: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  const fecharRef = useRef(fechar);
+  fecharRef.current = fechar;
+  useEffect(() => {
+    if (!aberto) return;
+    const eu = {};
+    dialogosAbertos.push(eu);
+    const antes = document.activeElement as HTMLElement | null;
+    const focaveis = () => [...(ref.current?.querySelectorAll<HTMLElement>(FOCAVEIS) ?? [])];
+    (focaveis()[0] ?? ref.current)?.focus();
+    function tecla(e: KeyboardEvent) {
+      if (dialogosAbertos[dialogosAbertos.length - 1] !== eu) return;
+      if (e.key === 'Escape') { e.preventDefault(); fecharRef.current(); return; }
+      if (e.key !== 'Tab') return;
+      const f = focaveis();
+      if (!f.length) return;
+      if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+    }
+    document.addEventListener('keydown', tecla);
+    return () => {
+      document.removeEventListener('keydown', tecla);
+      dialogosAbertos.splice(dialogosAbertos.indexOf(eu), 1);
+      antes?.focus?.();
+    };
+  }, [aberto]);
+  return ref;
+}
+
 export function Folha({ aberta, fechar, titulo, children }: { aberta: boolean; fechar: () => void; titulo: string; children: ReactNode }) {
+  const ref = useDialogo(aberta, fechar);
   if (!aberta) return null;
   return (
     <>
       <div className="scrim" onClick={fechar} />
-      <div className="sheet" role="dialog" aria-label={titulo}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={titulo} tabIndex={-1} ref={ref}>
         <span className="grab" aria-hidden="true" />
         {children}
       </div>

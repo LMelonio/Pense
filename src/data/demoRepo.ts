@@ -24,7 +24,7 @@ export function dadosIniciais(u: Usuario): DadosAluno {
   return {
     perfil: { id: u.id, nome: u.nome || 'Estudante', usuario: null, xp_total: 0, vidas: VIDAS_MAX, vidas_atualizadas_em: agora, sequencia_atual: 0, sequencia_recorde: 0, ultimo_dia_meta: null, questoes_feitas: 0, acertos_total: 0, revisoes_concluidas: 0 },
     prefs: { ...PREFS_PADRAO },
-    temas: {}, revisao: {}, xpDia: {}, conquistas: {}, unidades: {}, vistas: [], interessePro: null
+    temas: {}, revisao: {}, xpDia: {}, conquistas: {}, unidades: {}, vistas: [], acertadas: [], interessePro: null
   };
 }
 
@@ -67,16 +67,12 @@ export const demoRepo: Repo = {
     if (!d) return dadosIniciais(u);
     return { ...dadosIniciais(u), ...d, prefs: { ...PREFS_PADRAO, ...d.prefs } };
   },
+  // No navegador vale o cálculo do app (src/domain/regras.ts): o salvar grava tudo, e as sessões não têm servidor.
   async salvar(d) { gravar(kDados(d.perfil.id), d); },
-  async registrarSessao(s, t) {
-    const k = `pense:demo:sessoes:${(ler<Usuario>(K_USER))?.id}`;
-    const xs = ler<unknown[]>(k) ?? [];
-    xs.push({ ...s, tentativas: t }); gravar(k, xs.slice(-200));
-  },
-  async exportar(d) {
-    const u = ler<Usuario>(K_USER);
-    return { usuario: u, dados: d, sessoes: ler<unknown[]>(`pense:demo:sessoes:${u?.id}`) ?? [] };
-  },
+  async iniciarSessao() { return novoId(); },
+  async responder() { /* o resultado já foi aplicado na tela e gravado pelo salvar */ },
+  async concluirSessao() { return null; },
+  async ganharVidaAnuncio() { /* a vida já foi somada na tela e gravada pelo salvar */ },
   async excluirConta() {
     const u = ler<Usuario>(K_USER);
     if (u) { localStorage.removeItem(kDados(u.id)); localStorage.removeItem(`pense:demo:sessoes:${u.id}`); }

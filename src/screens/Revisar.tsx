@@ -5,6 +5,7 @@ import { useDados } from '../state/AppContext';
 import { BannerDemo, BarraNav, Stats, corDe } from '../components/Base';
 import { IcSeta, Mascote } from '../components/Icones';
 import { revisaoPendente, revisaoVencida } from '../domain/regras';
+import { plural } from '../lib/texto';
 
 export default function Revisar() {
   const { dados, conteudo } = useDados();
@@ -65,7 +66,7 @@ export default function Revisar() {
                 <Link key={g.chave} to={`/refazer?recorte=${encodeURIComponent(g.recorte_id)}&tema=${encodeURIComponent(g.assunto)}${vencidas.length ? '' : '&todas=1'}`} className="list-row">
                   <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: corDe(g.cor).barra, flexShrink: 0 }} />
                   <span className="col spacer" style={{ gap: 0 }}><span style={{ fontWeight: 600 }}>{g.assunto}</span><span className="muted">{g.recorte}</span></span>
-                  <span className="row" style={{ gap: 3 }} aria-label={`${g.n} para refazer`}>{Array.from({ length: Math.min(g.n, 6) }, (_, i) => <span key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--coral)' }} />)}</span>
+                  <span className="row" style={{ gap: 3 }} role="img" aria-label={`${plural(g.n, 'questão', 'questões')} para refazer`}>{Array.from({ length: Math.min(g.n, 6) }, (_, i) => <span key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--coral)' }} />)}</span>
                   <IcSeta color="var(--text3)" size={18} />
                 </Link>
               ))}

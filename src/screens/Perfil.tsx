@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useDados } from '../state/AppContext';
 import { BannerDemo, BarraNav, Folha, Interruptor, Segmentado, corDe } from '../components/Base';
 import { IcAlvo, IcBroto, IcCalendario, IcChama, IcCheck, IcCoroa, IcEngrenagem, IcEstrela, IcIdioma, IcLampada, IcLivro, IcRaio, IcRevisar, IcSeta, IcSino, IcTrofeu } from '../components/Icones';
+import { plural } from '../lib/texto';
 import { CONQUISTAS, METAS, areasDoExame, nivel, progressoConquista, recortesVisiveis, sequenciaAtual, temasDoRecorte, chaveTema } from '../domain/regras';
 
 const ICONES: Record<string, (p: { color?: string; size?: number }) => JSX.Element> = {
@@ -29,13 +30,6 @@ export default function Perfil() {
   }), [recortes, conteudo, prefs.lingua, dados.temas]);
 
   const salvarPrefs = (mud: Partial<typeof prefs>) => atualizar((d) => ({ ...d, prefs: { ...d.prefs, ...mud } }), { prefs: true });
-
-  async function lembrete(v: boolean) {
-    if (v && 'Notification' in window && Notification.permission === 'default') {
-      try { await Notification.requestPermission(); } catch { /* ignorado */ }
-    }
-    salvarPrefs({ lembrete_ativo: v });
-  }
 
   const conq = folha && CONQUISTAS.find((c) => c.codigo === folha);
   const metaAtual = METAS.find((m) => m.xp === prefs.meta_xp) ?? METAS[2];
@@ -70,7 +64,7 @@ export default function Perfil() {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {[
-            [<IcChama size={20} />, `${sequenciaAtual(p)} dias`, `sequência · recorde ${p.sequencia_recorde}`, 'var(--amber-soft)'],
+            [<IcChama size={20} />, plural(sequenciaAtual(p), 'dia', 'dias'), `sequência · recorde ${p.sequencia_recorde}`, 'var(--amber-soft)'],
             [<IcRaio size={18} />, p.xp_total.toLocaleString('pt-BR'), 'XP no total', 'var(--lav-soft)'],
             [<IcCheck color="var(--primary)" size={20} />, String(p.questoes_feitas), 'questões feitas', 'var(--primary-soft)'],
             [<IcAlvo color="#2F5DBF" size={20} />, `${acerto}%`, 'de acerto geral', '#E1EAFB']
@@ -122,12 +116,7 @@ export default function Perfil() {
           <div className="list-card">
             <button className="list-row" onClick={() => setFolha('lingua')}><Icone bg="#E1EAFB"><IcIdioma color="#2F5DBF" size={20} /></Icone><Linha t="Língua estrangeira" s={`${prefs.lingua} · nas lições, na trilha e na revisão`} /><IcSeta color="var(--text3)" size={18} /></button>
             <button className="list-row" onClick={() => setFolha('meta')}><Icone bg="var(--primary-soft)"><IcAlvo color="var(--primary)" size={20} /></Icone><Linha t="Meta diária" s={`${metaAtual.xp} XP por dia · ~${metaAtual.min} min · ${metaAtual.nome}`} /><IcSeta color="var(--text3)" size={18} /></button>
-            <div className="list-row col" style={{ alignItems: 'stretch', cursor: 'default' }}>
-              <div className="row"><Icone bg="var(--amber-soft)"><IcSino color="#B8781A" size={20} /></Icone><Linha t="Lembrete diário" s={prefs.lembrete_ativo ? `Todo dia às ${prefs.lembrete_hora}` : 'Desligado'} /><Interruptor rotulo="Lembrete diário" ligado={prefs.lembrete_ativo} mudar={lembrete} /></div>
-              {prefs.lembrete_ativo && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-                {['07:00', '12:00', '19:00', '21:00'].map((h) => <button key={h} className={`btn ghost sm`} style={{ width: '100%', borderColor: prefs.lembrete_hora === h ? 'var(--primary)' : undefined, background: prefs.lembrete_hora === h ? 'var(--selected)' : undefined }} onClick={() => salvarPrefs({ lembrete_hora: h })}>{h}</button>)}
-              </div>}
-            </div>
+            <div className="list-row" style={{ cursor: 'default' }}><Icone bg="var(--amber-soft)"><IcSino color="#B8781A" size={20} /></Icone><Linha t="Lembrete diário" s="Um aviso por dia para não perder a sequência" /><span className="pill" style={{ background: 'var(--amber-soft)', color: 'var(--amber-text)' }}>Em breve</span></div>
             <div className="list-row" style={{ cursor: 'default' }}><Icone bg="var(--ok-soft)"><IcLampada color="var(--ok-text)" size={20} /></Icone><Linha t="Explicação de cada questão" s={prefs.explicacao_imediata ? 'Aparece logo depois de responder' : 'Só no resultado e na revisão'} /><Interruptor rotulo="Explicação de cada questão" ligado={prefs.explicacao_imediata} mudar={(v) => salvarPrefs({ explicacao_imediata: v })} /></div>
           </div>
         </section>

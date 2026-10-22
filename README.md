@@ -37,7 +37,7 @@ No primeiro acesso o aluno escolhe só a **língua estrangeira** (Inglês ou Esp
 ### Matérias e vidas
 
 - O conteúdo do ENEM é organizado por **matéria** (Português, Literatura, Inglês ou Espanhol, Artes, Educação Física, Tecnologia, História, Geografia, Filosofia, Sociologia, Biologia, Química, Física e Matemática). Dentro de cada matéria ficam os **subconteúdos** (ex.: Geografia › Urbanização). Início e Trilha usam as matérias nas abas.
-- O aluno tem **3 vidas**; errar numa lição gasta 1, e 1 volta a cada 30 minutos. Sem vidas, ele escolhe: **esperar**, **assistir a um anúncio** (+1 vida) ou conhecer o **Pense Pro** (vidas ilimitadas, ainda "em breve"). Terminar uma revisão dos erros também devolve 1 vida.
+- O aluno tem **3 vidas**; errar numa lição gasta 1, e 1 volta a cada 30 minutos. Sem vidas, ele escolhe: **esperar**, **assistir a um anúncio** (+1 vida) ou conhecer o **Pense Pro** (vidas ilimitadas, ainda "em breve"). Terminar uma revisão recuperando pelo menos uma questão também devolve 1 vida. O servidor limita as vidas extras a 5 por dia com anúncio e 5 por dia com revisão.
 - O anúncio ainda é um **espaço reservado** com contagem de 15 s (`src/components/AnuncioPremiado.tsx`). Para veicular anúncios de verdade, troque o miolo do componente pela chamada da rede de anúncios premiados (ex.: Google Ad Manager).
 
 > **E-mails do Supabase:** o envio padrão do Supabase só entrega para os e-mails da equipe do projeto e tem limite de poucos envios por hora. Para "Esqueci minha senha" funcionar para qualquer aluno, configure um SMTP próprio (Resend, Brevo, SES…) em *Authentication › Emails › SMTP Settings*. Com "Confirm email" desligado, criar conta não depende de e-mail.
@@ -45,7 +45,7 @@ No primeiro acesso o aluno escolhe só a **língua estrangeira** (Inglês ou Esp
 ## 3. Criar o banco no Supabase (10 min)
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (plano Free).
-2. Abra o **SQL Editor** e rode `supabase/setup_completo.sql`. Ele cria as tabelas, as regras de acesso (RLS), os gatilhos e os dados base (é a soma das migrations `0001` a `0005`; num banco que já existe, rode só as migrations que faltam).
+2. Abra o **SQL Editor** e rode `supabase/setup_completo.sql`. Ele cria as tabelas, as regras de acesso (RLS), os gatilhos e os dados base (é a soma das migrations `0001` a `0006`; num banco que já existe, rode só as migrations que faltam).
 3. Copie `.env.example` para `.env` e preencha, com os dados de *Project Settings › API Keys*:
    - `VITE_SUPABASE_URL`: `https://<id-do-projeto>.supabase.co` (não o link do painel).
    - `VITE_SUPABASE_ANON_KEY`: a chave **publishable** (`sb_publishable_…`) ou a **anon** legada (`eyJ…`).
@@ -116,13 +116,31 @@ scripts/        gerar-seed-sql.mjs e seed-supabase.mjs
 |---|---|
 | Conteúdo (leitura pública) | exames, editais, recortes, edital_conteudo, textos_base, questoes, alternativas, questao_figuras, conquistas |
 | Aluno (só o dono, via RLS) | perfis, preferencias, xp_diario, sessoes_estudo, tentativas, progresso_tema, fila_revisao, progresso_unidade, usuario_conquistas, interesse_pro, assinaturas |
-| Funções | gatilho que cria o perfil no cadastro (inclusive Google e sem login), `excluir_minha_conta()` (LGPD), `v_ranking_semana`, `v_resumo_conteudo` |
+| Funções do jogo | `iniciar_sessao`, `responder` (confere o gabarito, gasta a vida, agenda a revisão), `concluir_sessao` (XP, sequência, coroas, unidade e conquistas), `ganhar_vida_anuncio`, `garantir_perfil` |
+| Outras funções | gatilho que cria o perfil no cadastro (inclusive Google e sem login), `excluir_minha_conta()` (LGPD), `v_ranking_semana`, `v_resumo_conteudo` |
 
 Usuários novos não precisam ser criados à mão: o cadastro no app (ou *Authentication › Users › Add user* no painel) dispara o gatilho, que cria o perfil e as preferências.
 
 Em `recortes` ficam as **matérias** de cada exame; a coluna `area` agrupa as do ENEM (Linguagens, Humanas, Natureza, Matemática). O `assunto` da questão é o subconteúdo dentro da matéria.
 
 Para adicionar um concurso, cadastre-o em `exames` (com `ativo = true`), as matérias em `recortes` e as questões em `questoes` e `alternativas`.
+
+### Pontuação no servidor
+
+XP, vidas, sequência, coroas, revisão, unidades e conquistas são calculados pelas funções do banco a partir das respostas (migration `0006`). O app mostra o resultado na hora com as mesmas regras (`src/domain/regras.ts`), mas a palavra final é do servidor:
+
+- o aluno só grava direto o **nome**, as **preferências** e o **interesse no Pro**; tentar gravar XP, sequência, coroas ou conquistas pela API dá `permission denied`;
+- clique repetido em Verificar ou em Ver resultado não duplica nada (uma resposta por questão; concluir de novo devolve o mesmo resumo);
+- com 0 vidas o servidor recusa a resposta na lição; questão que o aluno já acertou antes vale 5 XP, em vez de 10;
+- Bronze exige pelo menos um acerto.
+
+No modo demonstração (sem Supabase) vale só o cálculo do app, salvo no navegador.
+
+### Segurança: o que ainda depende de configuração
+
+- **Confirmação de e-mail e CAPTCHA:** para abrir para alunos, ligue *Confirm email* (precisa de SMTP próprio, veja a seção 2) e o CAPTCHA (Cloudflare Turnstile) em *Authentication › Attack Protection*, que protege o cadastro e o acesso sem login.
+- **Cabeçalhos:** o build publica uma política de segurança de conteúdo (CSP) numa `<meta>`. O GitHub Pages não deixa configurar cabeçalhos; para bloquear o app dentro de iframes (`frame-ancestors`), use uma hospedagem com cabeçalhos (Cloudflare Pages, Netlify).
+- **Termos de uso e Política de privacidade:** a tela de entrada cita os dois, mas os textos ainda não existem.
 
 ## 8. Comandos
 

@@ -2,6 +2,7 @@
 import type { DadosAluno, ItemRevisao, Perfil, ProgressoTema, Questao, Conteudo } from '../data/types';
 
 export const XP_ACERTO = 10;
+export const XP_REPETIDA = 5; // questão que o aluno já tinha acertado antes
 export const BONUS_PERFEITA = 5;
 export const XP_REVISAO = [5, 4, 3]; // sem dica, 1 dica, 2 dicas
 export const VIDAS_MAX = 3;
@@ -82,9 +83,9 @@ export function dominioDe(hist: boolean[]) {
   return Math.round((hist.filter(Boolean).length / hist.length) * 100);
 }
 
-/** Coroa: 0 Novo, 1 Bronze (1ª lição), 2 Prata (≥60%), 3 Ouro (≥85% com 8+ respostas). */
+/** Coroa: 0 Novo, 1 Bronze (1ª lição com algum acerto), 2 Prata (≥60%), 3 Ouro (≥85% com 8+ respostas). */
 export function coroaCalculada(t: ProgressoTema) {
-  if (t.licoes === 0) return 0;
+  if (t.licoes === 0 || t.dominio === 0) return 0;
   if (t.dominio >= 85 && t.historico.length >= 8) return 3;
   if (t.dominio >= 60 && t.historico.length >= 5) return 2;
   return 1;
@@ -160,20 +161,34 @@ function embaralhar<T>(xs: T[]) {
   return a;
 }
 
-/** Monta uma lição: prioriza questões ainda não vistas. */
+/** Monta uma lição: prioriza questões ainda não vistas. Subconteúdo com poucas questões é completado com outros da mesma matéria. */
 export function montarLicao(c: Conteudo, d: DadosAluno, recorte_id: string, assunto: string, n = QUESTOES_POR_LICAO): Questao[] {
   const vistas = new Set(d.vistas);
-  const pool = c.questoes.filter((q) => q.recorte_id === recorte_id && q.assunto === assunto && (!q.lingua || q.lingua === d.prefs.lingua));
-  const novas = embaralhar(pool.filter((q) => !vistas.has(q.id)));
-  const velhas = embaralhar(pool.filter((q) => vistas.has(q.id)));
-  return [...novas, ...velhas].slice(0, n);
+  const ordenar = (qs: Questao[]) => [...embaralhar(qs.filter((q) => !vistas.has(q.id))), ...embaralhar(qs.filter((q) => vistas.has(q.id)))];
+  const daMateria = c.questoes.filter((q) => q.recorte_id === recorte_id && (!q.lingua || q.lingua === d.prefs.lingua));
+  const doTema = ordenar(daMateria.filter((q) => q.assunto === assunto));
+  const outras = doTema.length < n ? ordenar(daMateria.filter((q) => q.assunto !== assunto)) : [];
+  return [...doTema, ...outras].slice(0, n);
 }
+
+/** XP de um acerto: menos XP para questão que o aluno já tinha acertado (o servidor aplica a mesma regra). */
+export const xpDoAcerto = (d: DadosAluno, questao_id: string) => (d.acertadas.includes(questao_id) ? XP_REPETIDA : XP_ACERTO);
 
 export function unidadesDoRecorte(c: Conteudo, recorte_id: string, lingua: string) {
   const temas = temasDoRecorte(c, recorte_id, lingua);
   const unidades: InfoTema[][] = [];
   for (let i = 0; i < temas.length; i += TEMAS_POR_UNIDADE) unidades.push(temas.slice(i, i + TEMAS_POR_UNIDADE));
   return unidades;
+}
+
+/** Tema feito na trilha: já tem coroa (pelo menos um acerto). */
+export const temaFeito = (d: DadosAluno, t: InfoTema) => (d.temas[chaveTema(t.recorte_id, t.assunto)]?.coroa ?? 0) >= 1;
+
+/** Desafio da unidade liberado: desafio da unidade anterior vencido e todos os temas desta feitos. */
+export function desafioLiberado(d: DadosAluno, unidades: InfoTema[][], recorte_id: string, idx: number) {
+  const un = unidades[idx];
+  if (!un?.length) return false;
+  return (idx === 0 || !!d.unidades[`${recorte_id}|${idx - 1}`]) && un.every((t) => temaFeito(d, t));
 }
 
 export function montarDesafio(c: Conteudo, d: DadosAluno, temas: InfoTema[]) {

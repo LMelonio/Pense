@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IcX, Mascote } from './Icones';
+import { useDialogo } from './Base';
 
 export const SEGUNDOS_ANUNCIO = 15;
 
 export function AnuncioPremiado({ aberto, concluir, cancelar }: { aberto: boolean; concluir: () => void; cancelar: () => void }) {
   const [resta, setResta] = useState(SEGUNDOS_ANUNCIO);
+  const ref = useDialogo(aberto, cancelar); // Esc fecha sem ganhar a vida
 
   useEffect(() => {
     if (!aberto) return;
@@ -19,7 +21,7 @@ export function AnuncioPremiado({ aberto, concluir, cancelar }: { aberto: boolea
   if (!aberto) return null;
   // Portal no body: o anúncio cobre a tela inteira mesmo quando aberto de dentro de uma folha.
   return createPortal(
-    <div className="anuncio" role="dialog" aria-modal="true" aria-label="Anúncio">
+    <div className="anuncio" role="dialog" aria-modal="true" aria-label="Anúncio" tabIndex={-1} ref={ref}>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <span className="pill" style={{ background: 'var(--card)', border: '1.5px solid var(--line)', color: 'var(--text2)' }}>Anúncio{resta > 0 ? ` · ${resta} s` : ''}</span>
         <button className="linkbtn" onClick={cancelar} aria-label="Fechar o anúncio sem ganhar a vida" style={{ color: 'var(--icon)' }}><IcX /></button>

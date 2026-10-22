@@ -9,9 +9,11 @@ interface Ctx {
   conteudo: Conteudo | null;
   usuario: Usuario | null;
   dados: DadosAluno | null;
-  carregando: boolean;
-  erro: string | null;
+  carregando: boolean; // conferindo a sessão e, se houver aluno, os dados dele
+  erro: string | null; // falha ao carregar (a tela mostra "Tentar de novo")
   atualizar: (fn: (d: DadosAluno) => DadosAluno, m: Mudancas) => Promise<DadosAluno | null>;
+  /** Relê os dados do aluno no servidor (depois de uma sessão ou de uma gravação que falhou). */
+  sincronizar: () => Promise<void>;
   avisar: (msg: string) => void;
   recarregar: () => Promise<void>;
 }
@@ -47,32 +49,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [erro, setErro] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const dadosRef = useRef<DadosAluno | null>(null);
+  const conteudoRef = useRef<Conteudo | null>(null);
+  const usuarioRef = useRef<Usuario | null>(null);
+  const idCarregado = useRef<string | null | undefined>(undefined); // aluno cujos dados estão carregados ou carregando
   const timer = useRef<number>();
 
   const avisar = useCallback((msg: string) => {
     setToast(msg);
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setToast(null), 3200);
+    timer.current = window.setTimeout(() => setToast(null), 4000);
   }, []);
 
+  const definirDados = useCallback((d: DadosAluno | null) => { dadosRef.current = d; setDados(d); }, []);
+
+  // Uma carga por aluno: o Supabase avisa o mesmo login várias vezes (sessão inicial, token renovado, dados alterados).
   const carregarUsuario = useCallback(async (u: Usuario | null) => {
-    setUsuario(u);
-    if (!u) { dadosRef.current = null; setDados(null); return; }
+    usuarioRef.current = u; setUsuario(u);
+    const id = u?.id ?? null;
+    if (id === idCarregado.current) return;
+    idCarregado.current = id;
+    if (!u) { definirDados(null); return; }
     try {
       const d = await repo.carregarDados(u);
-      dadosRef.current = d; setDados(d);
+      if (idCarregado.current === u.id) { definirDados(d); setErro(null); }
+    } catch (e) {
+      idCarregado.current = undefined; // permite tentar de novo
+      throw e;
+    }
+  }, [definirDados]);
+
+  // O conteúdo não segura a tela de entrada: carrega em paralelo (com reserva embutida se o banco demorar).
+  const carregarConteudo = useCallback(async () => {
+    if (conteudoRef.current) return;
+    try {
+      const c = await repo.carregarConteudo();
+      conteudoRef.current = c; setConteudo(c);
     } catch (e) {
       setErro((e as Error).message);
     }
   }, []);
 
   const recarregar = useCallback(async () => {
-    setCarregando(true);
+    setCarregando(true); setErro(null);
+    carregarConteudo();
     try {
-      const [c, u] = await Promise.all([repo.carregarConteudo(), repo.usuarioAtual()]);
-      setConteudo(c);
+      const u = await repo.usuarioAtual();
       await carregarUsuario(u);
-      setErro(null);
       // Já logado e voltou com erro na URL (ex.: a conta Google já é de outro usuário). Sem login, a tela Entrar mostra.
       const erroUrl = u && erroDoRetorno();
       if (erroUrl) { avisar(erroUrl); limparRetornoDaUrl(); }
@@ -81,35 +103,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setCarregando(false);
     }
-  }, [carregarUsuario, avisar]);
+  }, [carregarConteudo, carregarUsuario, avisar]);
 
   useEffect(() => {
     recarregar();
-    return repo.aoMudarUsuario((u) => {
-      if (u?.id !== dadosRef.current?.perfil.id || !u) carregarUsuario(u);
-      else setUsuario(u);
-    });
+    return repo.aoMudarUsuario((u) => { carregarUsuario(u).catch((e) => setErro((e as Error).message)); });
   }, [recarregar, carregarUsuario]);
 
   useEffect(() => aplicarAparencia(dados), [dados]);
 
+  const sincronizar = useCallback(async () => {
+    const u = usuarioRef.current;
+    if (!u) return;
+    try {
+      const d = await repo.carregarDados(u);
+      if (idCarregado.current === u.id) definirDados(d);
+    } catch (e) {
+      console.warn('[Pense] Não deu para atualizar os dados agora:', (e as Error).message);
+    }
+  }, [definirDados]);
+
+  // Mostra na hora e grava em seguida. Se a gravação falhar, avisa e relê do servidor, para a tela não mostrar
+  // algo que não foi salvo.
   const atualizar = useCallback(async (fn: (d: DadosAluno) => DadosAluno, m: Mudancas) => {
     const atual = dadosRef.current;
     if (!atual) return null;
     const novo = fn(atual);
-    dadosRef.current = novo; setDados(novo);
-    try { await repo.salvar(novo, m); } catch (e) { avisar('Não deu para salvar agora: ' + (e as Error).message); }
+    definirDados(novo);
+    try {
+      await repo.salvar(novo, m);
+    } catch (e) {
+      avisar(`Não deu para salvar agora. ${(e as Error).message}`);
+      sincronizar();
+    }
     return novo;
-  }, [avisar]);
+  }, [avisar, definirDados, sincronizar]);
 
   // Visitante que salvou o progresso com o Google: o perfil passa a usar o nome da conta Google.
-  const nomeConta = usuario && !usuario.anonimo && usuario.nome && usuario.nome !== 'Estudante' ? usuario.nome : null;
+  const nomeConta = usuario && !usuario.anonimo && usuario.nome && usuario.nome !== 'Estudante' ? usuario.nome.slice(0, 40) : null;
   useEffect(() => {
-    if (nomeConta && dados?.perfil.nome === 'Estudante') atualizar((d) => ({ ...d, perfil: { ...d.perfil, nome: nomeConta } }), { perfil: true });
+    if (nomeConta && dados?.perfil.nome === 'Estudante') atualizar((d) => ({ ...d, perfil: { ...d.perfil, nome: nomeConta } }), { nome: true });
   }, [nomeConta, dados?.perfil.nome, atualizar]);
 
   return (
-    <AppCtx.Provider value={{ conteudo, usuario, dados, carregando, erro, atualizar, avisar, recarregar }}>
+    <AppCtx.Provider value={{ conteudo, usuario, dados, carregando, erro, atualizar, sincronizar, avisar, recarregar }}>
       {children}
       {toast && <div className="toast" role="status">{toast}</div>}
     </AppCtx.Provider>

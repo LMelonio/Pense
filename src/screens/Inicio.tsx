@@ -6,6 +6,7 @@ import { CORES_COROA, IcCheck, IcCoracao, IcCoroa, IcRevisar } from '../componen
 import { SemVidas } from '../components/SemVidas';
 import { NOMES_COROA, VIDAS_MAX, chaveTema, hoje, recortesVisiveis, revisaoVencida, sequenciaAtual, temasDoRecorte, vidasAgora, QUESTOES_POR_LICAO, XP_ACERTO } from '../domain/regras';
 import type { InfoTema } from '../domain/regras';
+import { plural } from '../lib/texto';
 
 const DIAS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 
@@ -47,7 +48,7 @@ export default function Inicio() {
             <div aria-hidden="true" style={{ width: 42, height: 42, borderRadius: '50%', background: 'var(--mascot)', display: 'grid', placeItems: 'center', fontFamily: 'var(--font-title)', fontWeight: 700, color: '#12302C', border: '2.5px solid var(--card)', boxShadow: '0 0 0 2px var(--mascot)' }}>{nome[0]}</div>
             <div className="col" style={{ gap: 0 }}>
               <span style={{ fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 19 }}>Oi, {nome}</span>
-              <span className="muted">{diasAteProva != null && diasAteProva >= 0 ? `${exame.nome} em ${diasAteProva} dias` : exame.nome}</span>
+              <span className="muted">{diasAteProva != null && diasAteProva >= 0 ? `${exame.nome} em ${plural(diasAteProva, 'dia', 'dias')}` : exame.nome}</span>
             </div>
           </div>
           <Stats />
@@ -59,7 +60,7 @@ export default function Inicio() {
             <div className="col" style={{ gap: 2 }}>
               <span className="kicker">Meta de hoje</span>
               <span className="big">{xpHoje} de {dados.prefs.meta_xp} XP</span>
-              <span className="muted">{xpHoje >= dados.prefs.meta_xp ? `Meta batida! Sequência de ${seq} dia${seq === 1 ? '' : 's'}.` : `Mais ${dados.prefs.meta_xp - xpHoje} XP e a sequência chega a ${seq + 1}.`}</span>
+              <span className="muted">{xpHoje >= dados.prefs.meta_xp ? `Meta batida! Sequência de ${plural(seq, 'dia', 'dias')}.` : `Mais ${dados.prefs.meta_xp - xpHoje} XP e a sequência chega a ${seq + 1}.`}</span>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
@@ -71,7 +72,7 @@ export default function Inicio() {
             ))}
           </div>
           <div className="row" style={{ justifyContent: 'space-between', paddingTop: 12, borderTop: '1.5px dashed var(--line)' }}>
-            <div className="row" style={{ gap: 3 }} aria-label={`${vidas} de ${VIDAS_MAX} vidas`}>
+            <div className="row" style={{ gap: 3 }} role="img" aria-label={`${vidas} de ${VIDAS_MAX} vidas`}>
               {Array.from({ length: VIDAS_MAX }, (_, i) => <IcCoracao key={i} size={20} bater={false} cor={i < vidas ? '#E5534B' : 'var(--line)'} />)}
             </div>
             <span className="muted" style={{ textAlign: 'right' }}>{vidas >= VIDAS_MAX ? 'Vidas cheias' : `Mais 1 vida em ${proximaEmMin} min ou já, revisando`}</span>
@@ -82,7 +83,7 @@ export default function Inicio() {
           <span style={{ width: 46, height: 46, borderRadius: 14, background: 'var(--card)', display: 'grid', placeItems: 'center' }}><IcRevisar color="var(--lav)" /></span>
           <div className="col spacer" style={{ gap: 2 }}>
             <span className="h2" style={{ fontSize: 17 }}>Revisão do dia</span>
-            <span className="small">{vencidas ? `${vencidas} questão${vencidas > 1 ? 'ões' : ''} que você errou volta${vencidas > 1 ? 'm' : ''} hoje` : 'Nada vencido hoje'}</span>
+            <span className="small">{vencidas ? `${plural(vencidas, 'questão', 'questões')} que você errou ${vencidas === 1 ? 'volta' : 'voltam'} hoje` : 'Nada vencido hoje'}</span>
           </div>
           <Link to={vencidas ? '/refazer' : '/revisar'} className="btn lav sm">{vencidas ? `${Math.max(1, Math.round(vencidas * 0.6))} min` : 'Ver'}</Link>
         </section>
@@ -90,7 +91,7 @@ export default function Inicio() {
         <section className="col" style={{ gap: 12 }} aria-label="Escolha o tema">
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <h2 className="title" style={{ fontSize: 22 }}>Escolha o tema</h2>
-            <span className="muted">{temas.reduce((s, t) => s + t.total, 0)} questões</span>
+            <span className="muted">{plural(temas.reduce((s, t) => s + t.total, 0), 'questão', 'questões')}</span>
           </div>
           <div className="tabs" role="tablist">
             {recortes.map((r) => {
@@ -107,7 +108,7 @@ export default function Inicio() {
                   <span aria-hidden="true" style={{ width: 46, height: 46, borderRadius: 14, background: cor.suave, color: cor.forte, display: 'grid', placeItems: 'center', fontFamily: 'var(--font-title)', fontWeight: 700 }}>{recorte.sigla}</span>
                   <span className="col spacer" style={{ gap: 5, minWidth: 0 }}>
                     <span style={{ fontWeight: 600, lineHeight: 1.25 }}>{t.assunto}</span>
-                    <span className="muted">{t.total} questões · {p ? `${p.dominio}% dominado` : 'ainda não começou'}</span>
+                    <span className="muted">{plural(t.total, 'questão', 'questões')} · {p ? `${p.dominio}% dominado` : 'ainda não começou'}</span>
                     <span className="bar" aria-hidden="true"><span style={{ width: `${p?.dominio ?? 0}%`, background: cor.barra }} /></span>
                   </span>
                   <span className="col" style={{ alignItems: 'center', gap: 2, minWidth: 52 }}>
@@ -127,8 +128,8 @@ export default function Inicio() {
             <span className="kicker" style={{ color: cor.forte }}>{recorte.nome}</span>
             <span className="title" style={{ fontSize: 24 }}>{sel.assunto}</span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              <div className="card soft-lav" style={{ textAlign: 'center', padding: 10 }}><div className="big">+{Math.min(QUESTOES_POR_LICAO, sel.total) * XP_ACERTO}</div><span className="small">XP possível</span></div>
-              <div className="card" style={{ textAlign: 'center', padding: 10, background: 'var(--primary-soft)', borderColor: 'transparent' }}><div className="big">{Math.min(QUESTOES_POR_LICAO, sel.total)}</div><span className="small">questões</span></div>
+              <div className="card soft-lav" style={{ textAlign: 'center', padding: 10 }}><div className="big">+{QUESTOES_POR_LICAO * XP_ACERTO}</div><span className="small">XP possível</span></div>
+              <div className="card" style={{ textAlign: 'center', padding: 10, background: 'var(--primary-soft)', borderColor: 'transparent' }}><div className="big">{QUESTOES_POR_LICAO}</div><span className="small">questões</span></div>
               <div className="card" style={{ textAlign: 'center', padding: 10, background: 'var(--coral-soft)', borderColor: 'transparent' }}><div className="big">{vidas}</div><span className="small">vidas</span></div>
             </div>
             {vidas === 0 ? <SemVidas esperar={() => setSel(null)} /> : (

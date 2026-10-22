@@ -131,6 +131,7 @@ export interface DadosAluno {
   conquistas: Record<string, string>; // código -> data
   unidades: Record<string, boolean>; // recorte_id|n -> desafio concluído
   vistas: string[]; // questões já respondidas
+  acertadas: string[]; // questões já acertadas (valem menos XP de novo)
   interessePro: string | null;
 }
 

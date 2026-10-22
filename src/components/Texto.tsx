@@ -2,10 +2,14 @@
 import { useMemo } from 'react';
 import { marked } from 'marked';
 import katex from 'katex';
+import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
 import type { Figura } from '../data/types';
 
 marked.setOptions({ gfm: true, breaks: false });
+
+// O que o KaTeX gera (MathML e SVG) e as imagens das questões passam; scripts, eventos e links javascript: não.
+const LIMPEZA = { USE_PROFILES: { html: true, svg: true, mathMl: true }, ADD_TAGS: ['semantics', 'annotation'], ADD_ATTR: ['loading', 'encoding'] };
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -26,12 +30,12 @@ export function renderizar(md: string, figuras: Figura[] = []) {
   let html = marked.parse(s, { async: false }) as string;
   html = html.replace(/@@F(\d+)@@/g, (_, i) => formulas[Number(i)]).replace(/@@DOLAR@@/g, '$');
   html = html.replace(/<p>Fonte:/g, '<p class="fonte">Fonte:');
-  return html;
+  return DOMPurify.sanitize(html, LIMPEZA);
 }
 
 export function Texto({ md, figuras, className = 'texto-questao' }: { md: string | null | undefined; figuras?: Figura[]; className?: string }) {
   const html = useMemo(() => renderizar(md ?? '', figuras), [md, figuras]);
-  // Conteúdo vem do banco curado (não de usuários); ainda assim só aceitamos o que o marked gera.
+  // HTML já limpo pelo DOMPurify em renderizar (o conteúdo vem do banco, mas não confiamos nele às cegas).
   return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 

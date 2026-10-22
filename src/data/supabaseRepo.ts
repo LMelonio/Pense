@@ -1,10 +1,12 @@
-// Implementação com Supabase (Auth + Postgres com RLS). Tabelas em supabase/migrations.
+// Implementação com Supabase (Auth + Postgres com RLS). Tabelas e funções em supabase/migrations.
+// XP, vidas, sequência, coroas, revisão e conquistas são calculados no banco (0006): o app manda as respostas.
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import type { Mudancas, Provedores, Repo, Usuario } from './repo';
+import type { Mudancas, Provedores, Repo, ResumoSessao, Usuario } from './repo';
 import { carregarConteudoLocal, traduzirErro, urlBase } from './repo';
 import type { Conteudo, DadosAluno, Questao } from './types';
 import { PREFS_PADRAO } from './types';
 import { dadosIniciais } from './demoRepo';
+import { VIDAS_MAX } from '../domain/regras';
 
 function paraUsuario(u: User | null | undefined): Usuario | null {
   if (!u) return null;
@@ -20,8 +22,11 @@ function paraUsuario(u: User | null | undefined): Usuario | null {
   };
 }
 
+// Mensagem técnica só no console; o aluno vê a versão traduzida.
 function falhou(error: { message: string } | null, onde: string) {
-  if (error) throw new Error(`${onde}: ${error.message}`);
+  if (!error) return;
+  console.error(`[Pense] ${onde}:`, error.message);
+  throw new Error(traduzirErro(error.message));
 }
 
 function erroAuth(error: { message: string } | null) {
@@ -29,6 +34,19 @@ function erroAuth(error: { message: string } | null) {
 }
 
 const PROVEDORES_RESERVA: Provedores = { google: false, email: true, anonimo: true };
+const LIMITE_CONTEUDO_MS = 4000; // depois disso, usa o conteúdo embutido no app
+const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Tenta de novo quando a falha é de rede (não quando o servidor recusou). */
+async function comRetentativa<T>(f: () => Promise<T>, tentativas = 3): Promise<T> {
+  for (let i = 1; ; i++) {
+    try { return await f(); } catch (e) {
+      const rede = /fetch|network|abort|timed? ?out|demorou|conex/i.test((e as Error).message);
+      if (!rede || i >= tentativas) throw e;
+      await espera(600 * i);
+    }
+  }
+}
 
 async function todasAsLinhas<T>(consulta: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>) {
   const linhas: T[] = [];
@@ -41,8 +59,39 @@ async function todasAsLinhas<T>(consulta: (de: number, ate: number) => PromiseLi
   return linhas;
 }
 
+const fuso = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 export function criarSupabaseRepo(sb: SupabaseClient, url: string, chave: string): Repo {
   let provedores: Promise<Provedores> | null = null;
+
+  async function rpc<T>(funcao: string, args: Record<string, unknown> = {}): Promise<T> {
+    const { data, error } = await sb.rpc(funcao, args);
+    falhou(error, funcao);
+    return data as T;
+  }
+
+  async function conteudoDoBanco(sinal: AbortSignal): Promise<Conteudo | null> {
+    const [ex, rc, tb] = await Promise.all([
+      sb.from('exames').select('*').abortSignal(sinal),
+      sb.from('recortes').select('*').order('ordem').abortSignal(sinal),
+      todasAsLinhas<{ id: string; texto: string }>((a, b) => sb.from('textos_base').select('id,texto').range(a, b).abortSignal(sinal))
+    ]);
+    falhou(ex.error, 'Exames'); falhou(rc.error, 'Recortes');
+    type Linha = Omit<Questao, 'alternativas' | 'figuras'> & {
+      alternativas: { letra: string; texto: string | null; imagem: string | null }[];
+      questao_figuras: { ordem: number; imagem: string; descricao: string }[];
+    };
+    const qs = await todasAsLinhas<Linha>((a, b) =>
+      sb.from('questoes').select('*, alternativas(letra,texto,imagem), questao_figuras(ordem,imagem,descricao)').eq('ativa', true).order('id').range(a, b).abortSignal(sinal));
+    if (!qs.length) return null;
+    const questoes: Questao[] = qs.map(({ alternativas, questao_figuras, ...q }) => ({
+      ...q,
+      alternativas: [...alternativas].sort((x, y) => x.letra.localeCompare(y.letra)),
+      figuras: [...questao_figuras].sort((x, y) => x.ordem - y.ordem).map((f) => ({ imagem: f.imagem, descricao: f.descricao }))
+    }));
+    return { exames: ex.data ?? [], recortes: rc.data ?? [], textos_base: Object.fromEntries(tb.map((t) => [t.id, t.texto])), questoes };
+  }
+
   return {
     modo: 'supabase',
 
@@ -55,29 +104,20 @@ export function criarSupabaseRepo(sb: SupabaseClient, url: string, chave: string
       return provedores;
     },
 
+    // Banco primeiro; se demorar mais de 4 s, falhar ou estiver vazio, usa o conteúdo embutido (mesmas questões).
     async carregarConteudo(): Promise<Conteudo> {
-      const [ex, rc, tb] = await Promise.all([
-        sb.from('exames').select('*'),
-        sb.from('recortes').select('*').order('ordem'),
-        todasAsLinhas<{ id: string; texto: string }>((a, b) => sb.from('textos_base').select('id,texto').range(a, b))
-      ]);
-      falhou(ex.error, 'Exames'); falhou(rc.error, 'Recortes');
-      type Linha = Omit<Questao, 'alternativas' | 'figuras'> & {
-        alternativas: { letra: string; texto: string | null; imagem: string | null }[];
-        questao_figuras: { ordem: number; imagem: string; descricao: string }[];
-      };
-      const qs = await todasAsLinhas<Linha>((a, b) =>
-        sb.from('questoes').select('*, alternativas(letra,texto,imagem), questao_figuras(ordem,imagem,descricao)').eq('ativa', true).order('id').range(a, b));
-      if (!qs.length) {
+      const ctrl = new AbortController();
+      const relogio = setTimeout(() => ctrl.abort(), LIMITE_CONTEUDO_MS);
+      try {
+        const c = await conteudoDoBanco(ctrl.signal);
+        if (c) return c;
         console.warn('[Pense] O banco não tem questões ainda (rode a carga). Usando o conteúdo embutido.');
-        return carregarConteudoLocal();
+      } catch (e) {
+        console.warn('[Pense] Banco lento ou fora do ar; usando o conteúdo embutido.', (e as Error).message);
+      } finally {
+        clearTimeout(relogio);
       }
-      const questoes: Questao[] = qs.map(({ alternativas, questao_figuras, ...q }) => ({
-        ...q,
-        alternativas: [...alternativas].sort((x, y) => x.letra.localeCompare(y.letra)),
-        figuras: [...questao_figuras].sort((x, y) => x.ordem - y.ordem).map((f) => ({ imagem: f.imagem, descricao: f.descricao }))
-      }));
-      return { exames: ex.data ?? [], recortes: rc.data ?? [], textos_base: Object.fromEntries(tb.map((t) => [t.id, t.texto])), questoes };
+      return carregarConteudoLocal();
     },
 
     async usuarioAtual() {
@@ -85,7 +125,8 @@ export function criarSupabaseRepo(sb: SupabaseClient, url: string, chave: string
       return paraUsuario(data.session?.user);
     },
     aoMudarUsuario(cb) {
-      const { data } = sb.auth.onAuthStateChange((_e, s) => cb(paraUsuario(s?.user)));
+      // Fora do callback do Supabase: chamar o banco aqui dentro pode travar a sessão (recomendação do supabase-js).
+      const { data } = sb.auth.onAuthStateChange((_e, s) => { setTimeout(() => cb(paraUsuario(s?.user)), 0); });
       return () => data.subscription.unsubscribe();
     },
     async entrarEmail(email, senha) {
@@ -141,56 +182,55 @@ export function criarSupabaseRepo(sb: SupabaseClient, url: string, chave: string
         sb.from('xp_diario').select('dia,xp').eq('perfil_id', id).gte('dia', new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)),
         sb.from('usuario_conquistas').select('codigo,obtida_em').eq('perfil_id', id),
         sb.from('progresso_unidade').select('chave,desafio_ok').eq('perfil_id', id),
-        sb.from('tentativas').select('questao_id').eq('perfil_id', id).limit(5000),
+        sb.from('tentativas').select('questao_id,correta').eq('perfil_id', id).limit(5000),
         sb.from('interesse_pro').select('plano').eq('perfil_id', id).maybeSingle()
       ]);
       for (const [r, n] of [[pf, 'perfil'], [pr, 'preferências'], [tm, 'temas'], [rv, 'revisão'], [xd, 'XP'], [cq, 'conquistas'], [un, 'unidades'], [vt, 'tentativas']] as const) falhou(r.error, n);
+      const tentativas = (vt.data ?? []) as { questao_id: string; correta: boolean }[];
+      const perfil = pf.data ? { ...base.perfil, ...pf.data } : base.perfil;
       const d: DadosAluno = {
         ...base,
-        perfil: pf.data ? { ...base.perfil, ...pf.data } : base.perfil,
+        perfil: { ...perfil, vidas: Math.min(perfil.vidas, VIDAS_MAX) },
         prefs: pr.data ? { ...PREFS_PADRAO, ...pr.data, lembrete_hora: String(pr.data.lembrete_hora ?? '19:00').slice(0, 5) } : base.prefs,
         temas: Object.fromEntries((tm.data ?? []).map((t) => [`${t.recorte_id}|${t.assunto}`, { ...t, dominio: Number(t.dominio) }])),
         revisao: Object.fromEntries((rv.data ?? []).map((r) => [r.questao_id, r])),
         xpDia: Object.fromEntries((xd.data ?? []).map((x) => [x.dia, x.xp])),
         conquistas: Object.fromEntries((cq.data ?? []).map((c) => [c.codigo, c.obtida_em])),
         unidades: Object.fromEntries((un.data ?? []).map((x) => [x.chave, x.desafio_ok])),
-        vistas: [...new Set((vt.data ?? []).map((x) => x.questao_id as string))],
+        vistas: [...new Set(tentativas.map((x) => x.questao_id))],
+        acertadas: [...new Set(tentativas.filter((x) => x.correta).map((x) => x.questao_id))],
         interessePro: ip.data?.plano ?? null
       };
-      if (!pf.data) await this.salvar(d, { perfil: true, prefs: true });
+      // O gatilho do cadastro cria perfil e preferências; contas antigas sem eles são completadas aqui.
+      if (!pf.data || !pr.data) await rpc('garantir_perfil');
       return d;
     },
 
+    // Só o que o aluno pode gravar direto: nome, preferências e interesse no Pro. O resto vem das sessões (servidor).
     async salvar(d, m: Mudancas) {
       const id = d.perfil.id;
       const ops: PromiseLike<{ error: { message: string } | null }>[] = [];
-      if (m.perfil) ops.push(sb.from('perfis').upsert({ ...d.perfil, id }));
+      if (m.nome) ops.push(sb.from('perfis').update({ nome: d.perfil.nome }).eq('id', id));
       if (m.prefs) ops.push(sb.from('preferencias').upsert({ ...d.prefs, perfil_id: id }));
-      if (m.temas?.length) ops.push(sb.from('progresso_tema').upsert(m.temas.map((k) => ({ ...d.temas[k], perfil_id: id }))));
-      if (m.revisao?.length) ops.push(sb.from('fila_revisao').upsert(m.revisao.map((k) => ({ ...d.revisao[k], perfil_id: id }))));
-      if (m.xpDia?.length) ops.push(sb.from('xp_diario').upsert(m.xpDia.map((dia) => ({ perfil_id: id, dia, xp: d.xpDia[dia] }))));
-      if (m.conquistas?.length) ops.push(sb.from('usuario_conquistas').upsert(m.conquistas.map((c) => ({ perfil_id: id, codigo: c, obtida_em: d.conquistas[c] }))));
-      if (m.unidades?.length) ops.push(sb.from('progresso_unidade').upsert(m.unidades.map((c) => ({ perfil_id: id, chave: c, desafio_ok: d.unidades[c] }))));
       if (m.interessePro && d.interessePro) ops.push(sb.from('interesse_pro').upsert({ perfil_id: id, plano: d.interessePro }));
       const res = await Promise.all(ops);
       res.forEach((r) => falhou(r.error, 'Gravação'));
     },
 
-    async registrarSessao(s, t) {
-      const { data: u } = await sb.auth.getUser();
-      if (!u.user) return;
-      const { data, error } = await sb.from('sessoes_estudo').insert({ ...s, perfil_id: u.user.id }).select('id').single();
-      falhou(error, 'Sessão');
-      if (t.length) {
-        const { error: e2 } = await sb.from('tentativas').insert(t.map((x) => ({ ...x, perfil_id: u.user!.id, sessao_id: data!.id })));
-        falhou(e2, 'Tentativas');
-      }
+    iniciarSessao: (s) => comRetentativa(() => rpc<string>('iniciar_sessao', {
+      p_tipo: s.tipo, p_exame: s.exame_id, p_recorte: s.recorte_id, p_assunto: s.assunto, p_unidade: s.unidade, p_fuso: fuso()
+    })),
+
+    async responder(sessao, t) {
+      await comRetentativa(() => rpc('responder', {
+        p_sessao: sessao, p_questao: t.questao_id, p_letra: t.letra, p_dicas: t.dicas_usadas, p_viu_resolucao: t.viu_resolucao, p_tempo_ms: Math.round(t.tempo_ms)
+      }));
     },
 
-    async exportar(d) {
-      const { data: s } = await sb.from('sessoes_estudo').select('*').eq('perfil_id', d.perfil.id);
-      const { data: t } = await sb.from('tentativas').select('*').eq('perfil_id', d.perfil.id);
-      return { dados: d, sessoes: s ?? [], tentativas: t ?? [] };
+    concluirSessao: (sessao) => comRetentativa(() => rpc<ResumoSessao>('concluir_sessao', { p_sessao: sessao })),
+
+    async ganharVidaAnuncio() {
+      await rpc('ganhar_vida_anuncio');
     },
 
     async excluirConta() {

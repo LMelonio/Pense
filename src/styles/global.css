@@ -7,7 +7,7 @@
   --line2: #E4EEEB;
   --text: #12302C;
   --text2: #3F5A55;
-  --text3: #5C7671;
+  --text3: #546D68;
   --icon: #4A6560;
   --primary: #237A70;
   --primary-dark: #175C54;
@@ -185,7 +185,10 @@ p { margin: 0; }
 .texto-questao .fonte { font-size: 0.8em; color: var(--text3); }
 .texto-questao .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
 
-.feedback { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 26px 26px 0 0; padding: 18px 20px 28px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 -8px 24px rgba(18, 48, 44, 0.08); z-index: 10; animation: up .32s cubic-bezier(.2,.8,.3,1) both; max-height: 70%; overflow-y: auto; }
+/* Painel de resposta: a explicação rola por dentro e os botões ficam sempre visíveis (inclusive na horizontal) */
+.feedback { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 26px 26px 0 0; padding: 16px 20px 22px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 -8px 24px rgba(18, 48, 44, 0.08); z-index: 10; animation: up .32s cubic-bezier(.2,.8,.3,1) both; max-height: 72%; overflow: hidden; }
+.feedback > * { flex-shrink: 0; }
+.feedback > .feedback-corpo { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 .feedback.ok { background: var(--ok-soft); color: var(--ok-text); }
 .feedback.erro { background: var(--coral-soft); color: var(--coral-text); }
 .footer-cta { position: sticky; bottom: 0; padding: 12px 20px 24px; background: var(--bg-licao); border-top: 1.5px solid var(--line2); }
