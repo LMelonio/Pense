@@ -6,7 +6,9 @@ import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
 import type { Figura } from '../data/types';
 
-marked.setOptions({ gfm: true, breaks: false });
+// breaks: true → uma quebra simples vira quebra de linha (versos, letras de canção, linhas numeradas de texto-base).
+// Parágrafo novo continua sendo linha em branco.
+marked.setOptions({ gfm: true, breaks: true });
 
 // O que o KaTeX gera (MathML e SVG) e as imagens das questões passam; scripts, eventos e links javascript: não.
 const LIMPEZA = { USE_PROFILES: { html: true, svg: true, mathMl: true }, ADD_TAGS: ['semantics', 'annotation'], ADD_ATTR: ['loading', 'encoding'] };
