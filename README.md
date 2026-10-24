@@ -45,7 +45,7 @@ No primeiro acesso o aluno escolhe só a **língua estrangeira** (Inglês ou Esp
 ## 3. Criar o banco no Supabase (10 min)
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (plano Free).
-2. Abra o **SQL Editor** e rode `supabase/setup_completo.sql`. Ele cria as tabelas, as regras de acesso (RLS), os gatilhos e os dados base (é a soma das migrations `0001` a `0006`; num banco que já existe, rode só as migrations que faltam).
+2. Abra o **SQL Editor** e rode `supabase/setup_completo.sql`. Ele cria as tabelas, as regras de acesso (RLS), os gatilhos e os dados base (é a soma das migrations `0001` a `0007`; num banco que já existe, rode só as migrations que faltam).
 3. Copie `.env.example` para `.env` e preencha, com os dados de *Project Settings › API Keys*:
    - `VITE_SUPABASE_URL`: `https://<id-do-projeto>.supabase.co` (não o link do painel).
    - `VITE_SUPABASE_ANON_KEY`: a chave **publishable** (`sb_publishable_…`) ou a **anon** legada (`eyJ…`).
@@ -133,6 +133,13 @@ XP, vidas, sequência, coroas, revisão, unidades e conquistas são calculados p
 - clique repetido em Verificar ou em Ver resultado não duplica nada (uma resposta por questão; concluir de novo devolve o mesmo resumo);
 - com 0 vidas o servidor recusa a resposta na lição; questão que o aluno já acertou antes vale 5 XP, em vez de 10;
 - Bronze exige pelo menos um acerto.
+
+A migration `0007` faz o servidor conferir também o que o app manda nas sessões:
+
+- **lição e desafio** abrem com a lista de questões montada pelo app, e o servidor só aceita respostas dessas questões. A lição tem até 5 questões da matéria, com as do subconteúdo primeiro (outras só completam um subconteúdo com menos de 5); o desafio tem as questões dos 6 subconteúdos da unidade (10, ou todas se forem menos);
+- o **desafio** só abre com o desafio da unidade anterior vencido e todos os subconteúdos da unidade com coroa, e só é aprovado com todas as questões respondidas e 70% de acertos. A divisão em unidades é a mesma no app (`unidadesDoRecorte`) e no banco (`_temas_da_unidade`): mudar uma exige mudar a outra;
+- a **revisão** só aceita questões pendentes na fila do aluno (até 10 por sessão), no máximo 2 tentativas por questão, e nada depois de acertar ou de ver a resolução. As dicas são registradas no banco quando o aluno abre cada uma (`abrir_dica`);
+- o aluno não apaga a própria linha de preferências, e o app grava só os campos que mudaram.
 
 No modo demonstração (sem Supabase) vale só o cálculo do app, salvo no navegador.
 

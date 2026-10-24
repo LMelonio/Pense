@@ -2,7 +2,7 @@
 // XP, vidas, sequência, coroas, revisão e conquistas são calculados no banco (0006): o app manda as respostas.
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import type { Mudancas, Provedores, Repo, ResumoSessao, Usuario } from './repo';
-import { carregarConteudoLocal, traduzirErro, urlBase } from './repo';
+import { carregarConteudoLocal, falhaDeRede, traduzirErro, urlBase } from './repo';
 import type { Conteudo, DadosAluno, Questao } from './types';
 import { PREFS_PADRAO } from './types';
 import { dadosIniciais } from './demoRepo';
@@ -41,8 +41,7 @@ const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function comRetentativa<T>(f: () => Promise<T>, tentativas = 3): Promise<T> {
   for (let i = 1; ; i++) {
     try { return await f(); } catch (e) {
-      const rede = /fetch|network|abort|timed? ?out|demorou|conex/i.test((e as Error).message);
-      if (!rede || i >= tentativas) throw e;
+      if (!falhaDeRede(e) || i >= tentativas) throw e;
       await espera(600 * i);
     }
   }
@@ -96,11 +95,16 @@ export function criarSupabaseRepo(sb: SupabaseClient, url: string, chave: string
     modo: 'supabase',
 
     // Lê do Auth quais logins estão ligados, para não mandar o aluno a uma página de erro do Supabase.
+    // Com o servidor lento, desiste em 4 s e usa a reserva (o login em si tem o próprio limite de tempo).
     provedores() {
-      provedores ??= fetch(`${url}/auth/v1/settings`, { headers: { apikey: chave } })
+      if (provedores) return provedores;
+      const ctrl = new AbortController();
+      const relogio = setTimeout(() => ctrl.abort(), LIMITE_CONTEUDO_MS);
+      provedores = fetch(`${url}/auth/v1/settings`, { headers: { apikey: chave }, signal: ctrl.signal })
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
         .then((j) => ({ google: !!j.external?.google, email: !!j.external?.email, anonimo: !!j.external?.anonymous_users }))
-        .catch(() => { provedores = null; return PROVEDORES_RESERVA; });
+        .catch(() => { provedores = null; return PROVEDORES_RESERVA; })
+        .finally(() => clearTimeout(relogio));
       return provedores;
     },
 
@@ -211,20 +215,24 @@ export function criarSupabaseRepo(sb: SupabaseClient, url: string, chave: string
       const id = d.perfil.id;
       const ops: PromiseLike<{ error: { message: string } | null }>[] = [];
       if (m.nome) ops.push(sb.from('perfis').update({ nome: d.perfil.nome }).eq('id', id));
-      if (m.prefs) ops.push(sb.from('preferencias').upsert({ ...d.prefs, perfil_id: id }));
+      if (m.prefs?.length) ops.push(sb.from('preferencias').update(Object.fromEntries(m.prefs.map((k) => [k, d.prefs[k]]))).eq('perfil_id', id));
       if (m.interessePro && d.interessePro) ops.push(sb.from('interesse_pro').upsert({ perfil_id: id, plano: d.interessePro }));
       const res = await Promise.all(ops);
       res.forEach((r) => falhou(r.error, 'Gravação'));
     },
 
     iniciarSessao: (s) => comRetentativa(() => rpc<string>('iniciar_sessao', {
-      p_tipo: s.tipo, p_exame: s.exame_id, p_recorte: s.recorte_id, p_assunto: s.assunto, p_unidade: s.unidade, p_fuso: fuso()
+      p_tipo: s.tipo, p_exame: s.exame_id, p_recorte: s.recorte_id, p_assunto: s.assunto, p_unidade: s.unidade, p_fuso: fuso(), p_questoes: s.questoes
     })),
 
     async responder(sessao, t) {
       await comRetentativa(() => rpc('responder', {
         p_sessao: sessao, p_questao: t.questao_id, p_letra: t.letra, p_dicas: t.dicas_usadas, p_viu_resolucao: t.viu_resolucao, p_tempo_ms: Math.round(t.tempo_ms)
       }));
+    },
+
+    async abrirDica(sessao, questao_id, dica) {
+      await comRetentativa(() => rpc('abrir_dica', { p_sessao: sessao, p_questao: questao_id, p_dica: dica }));
     },
 
     concluirSessao: (sessao) => comRetentativa(() => rpc<ResumoSessao>('concluir_sessao', { p_sessao: sessao })),

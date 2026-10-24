@@ -149,10 +149,13 @@ export function areasDoExame(c: Conteudo, exame_id: string) {
 }
 export type Areas = ReturnType<typeof areasDoExame>;
 
+/** Subconteúdos da matéria, do que tem mais questões para o que tem menos. O empate vai pela ordem dos caracteres
+ * (não pela do idioma do aparelho), a mesma do banco ao conferir o desafio (_temas_da_unidade, migration 0007). */
 export function temasDoRecorte(c: Conteudo, recorte_id: string, lingua: string): InfoTema[] {
   const cont = new Map<string, number>();
   for (const q of c.questoes) if (q.recorte_id === recorte_id && (!q.lingua || q.lingua === lingua)) cont.set(q.assunto, (cont.get(q.assunto) ?? 0) + 1);
-  return [...cont.entries()].map(([assunto, total]) => ({ recorte_id, assunto, total })).sort((a, b) => b.total - a.total || a.assunto.localeCompare(b.assunto));
+  return [...cont.entries()].map(([assunto, total]) => ({ recorte_id, assunto, total }))
+    .sort((a, b) => b.total - a.total || (a.assunto < b.assunto ? -1 : a.assunto > b.assunto ? 1 : 0));
 }
 
 function embaralhar<T>(xs: T[]) {

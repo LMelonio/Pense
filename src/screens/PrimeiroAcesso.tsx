@@ -13,7 +13,7 @@ export default function PrimeiroAcesso() {
   const [meta, setMeta] = useState(dados.prefs.meta_xp);
 
   async function salvar() {
-    await atualizar((d) => ({ ...d, prefs: { ...d.prefs, lingua, meta_xp: meta, onboarding_ok: true } }), { prefs: true });
+    await atualizar((d) => ({ ...d, prefs: { ...d.prefs, lingua, meta_xp: meta, onboarding_ok: true } }), { prefs: ['lingua', 'meta_xp', 'onboarding_ok'] });
     nav('/inicio', { replace: true });
   }
 

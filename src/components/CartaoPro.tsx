@@ -19,18 +19,18 @@ export function CartaoPro() {
       <div role="radiogroup" aria-label="Escolha do plano" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {PLANOS.map((x) => (
           <button key={x.k} role="radio" aria-checked={plano === x.k} onClick={() => setPlano(x.k)}
-            style={{ position: 'relative', textAlign: 'left', padding: 12, borderRadius: 16, border: `2px solid ${plano === x.k ? '#fff' : 'rgba(255,255,255,.35)'}`, background: plano === x.k ? 'rgba(255,255,255,.16)' : 'transparent', color: '#fff', cursor: 'pointer' }}>
+            style={{ position: 'relative', textAlign: 'left', padding: 12, borderRadius: 16, border: `2px solid ${plano === x.k ? '#fff' : 'rgba(255,255,255,.35)'}`, background: plano === x.k ? 'var(--lav-dark)' : 'transparent', color: '#fff', cursor: 'pointer' }}>
             {x.tag && <span style={{ position: 'absolute', top: -10, right: 10, background: '#F2C14E', color: '#5A3E00', borderRadius: 99, fontSize: 11, fontWeight: 700, padding: '2px 8px' }}>{x.tag}</span>}
-            <span style={{ display: 'block', fontSize: 13, fontWeight: 600, opacity: 0.9 }}>{x.n}</span>
+            <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{x.n}</span>
             <span className="big" style={{ display: 'block', fontSize: 20 }}>{x.p}</span>
-            <span style={{ display: 'block', fontSize: 12, opacity: 0.85 }}>{x.s}</span>
+            <span style={{ display: 'block', fontSize: 12 }}>{x.s}</span>
           </button>
         ))}
       </div>
       <button className="btn white" style={{ color: 'var(--lav-dark)' }} onClick={async () => { await atualizar((d) => ({ ...d, interessePro: plano }), { interessePro: true }); avisar('Pronto! Vamos te avisar quando o Pro lançar.'); }}>
         {dados.interessePro ? 'Pronto, vamos te avisar' : 'Me avise quando lançar'}
       </button>
-      <span style={{ fontSize: 12, opacity: 0.8 }}>Preços em teste. Ninguém é cobrado agora.</span>
+      <span style={{ fontSize: 12 }}>Preços em teste. Ninguém é cobrado agora.</span>
     </div>
   );
 }

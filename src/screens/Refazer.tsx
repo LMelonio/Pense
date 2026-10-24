@@ -11,6 +11,7 @@ import { IcLampada, IcLock, IcRevisar, IcX, Mascote } from '../components/Icones
 import { Texto } from '../components/Texto';
 import { Folha, tocar, vibrar } from '../components/Base';
 import { XP_REVISAO, agendarErro, ajustarVidas, areasDoExame, hoje, novasConquistas, reagendar, revisaoPendente, revisaoVencida, somarXP } from '../domain/regras';
+import { falhaDeRede } from '../data/repo';
 import type { ResumoSessao } from '../data/repo';
 import type { Questao, Tentativa } from '../data/types';
 
@@ -72,15 +73,26 @@ export default function Refazer() {
   const rotuloAntes = item?.ultima_letra && !erradas.includes(item.ultima_letra) && !terminou ? { [item.ultima_letra]: 'sua resposta antes' } : undefined;
 
   function sessao() {
-    sessaoRef.current ??= repo.iniciarSessao({ tipo: 'revisao', exame_id: dados.prefs.exame_id, recorte_id: null, assunto: null, unidade: null })
+    sessaoRef.current ??= repo.iniciarSessao({ tipo: 'revisao', exame_id: dados.prefs.exame_id, recorte_id: null, assunto: null, unidade: null, questoes: null })
       .catch((e) => { sessaoRef.current = null; throw e; });
     return sessaoRef.current;
+  }
+
+  // Chamadas ao servidor em ordem (a dica chega antes da resposta). Se uma resposta falhar, é reenviada no fim.
+  function enfileirar(f: (sessao: string) => Promise<void>) {
+    filaRef.current = filaRef.current.then(async () => { await f(await sessao()); }).catch(() => { falhou.current = true; });
   }
 
   function registrar(correta: boolean, letra: string | null, viu: boolean) {
     const t: Tentativa = { questao_id: q.id, letra, correta, dicas_usadas: dicas, viu_resolucao: viu, tempo_ms: Date.now() - inicioQ.current, origem: 'revisao' };
     tentativas.current.push(t);
-    filaRef.current = filaRef.current.then(async () => { await repo.responder(await sessao(), t); }).catch(() => { falhou.current = true; });
+    enfileirar((s) => repo.responder(s, t));
+  }
+
+  function abrirDica(n: number) {
+    setDicas(n);
+    const id = q.id;
+    enfileirar((s) => repo.abrirDica(s, id, n));
   }
 
   function finalizarQuestao(acertou: boolean) {
@@ -135,7 +147,12 @@ export default function Refazer() {
     let resumo: ResumoSessao | null = null;
     try {
       await filaRef.current;
-      if (falhou.current) for (const t of tentativas.current.filter((x) => x.letra)) await repo.responder(await sessao(), t);
+      // Reenvio: o servidor ignora as repetidas e recusa a que veio depois da resolução; só a falha de rede interrompe.
+      if (falhou.current) {
+        for (const t of tentativas.current.filter((x) => x.letra)) {
+          await repo.responder(await sessao(), t).catch((e) => { if (falhaDeRede(e)) throw e; });
+        }
+      }
       resumo = await repo.concluirSessao(await sessao());
     } catch (e) {
       avisar(`Não deu para salvar esta revisão. ${(e as Error).message}`);
@@ -199,7 +216,7 @@ export default function Refazer() {
         </div>
         <span className="pill" style={{ background: 'var(--lav-soft)', color: 'var(--lav-dark)', height: 32, gap: 5 }}><IcRevisar size={15} />Revisão</span>
       </header>
-      <div className="screen licao" style={{ paddingBottom: 130 }}>
+      <div className="screen licao" tabIndex={0} role="region" aria-label="Questão" style={{ paddingBottom: 130 }}>
         <div className="row" style={{ background: 'var(--amber-soft)', color: 'var(--amber-text)', borderRadius: 14, padding: '10px 12px', gap: 10 }}>
           <IcRevisar size={20} color="#B8781A" />
           <span className="small">Você errou esta questão antes. A resposta só aparece depois que você tentar.</span>
@@ -218,7 +235,7 @@ export default function Refazer() {
               <div className="row">
                 <span aria-hidden="true" style={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 13, background: p.aberto ? (p.resol ? 'var(--ok)' : 'var(--lav)') : 'var(--lav-soft)', color: p.aberto ? '#fff' : '#7C73C9' }}>{p.resol ? '✓' : p.k + 1}</span>
                 <span className="spacer" style={{ fontWeight: 600, fontSize: 14, color: p.bloqueado ? 'var(--text3)' : 'var(--text)' }}>{p.resol ? 'Resolução' : `Dica ${p.k + 1}`}</span>
-                {p.podeAbrir && <button className="btn lav sm" style={{ height: 34 }} onClick={() => (p.resol ? verResolucao() : setDicas(p.k + 1))}>{p.resol ? 'Ver resolução' : 'Abrir'}</button>}
+                {p.podeAbrir && <button className="btn lav sm" style={{ height: 34 }} onClick={() => (p.resol ? verResolucao() : abrirDica(p.k + 1))}>{p.resol ? 'Ver resolução' : 'Abrir'}</button>}
                 {p.bloqueado && <span className="row muted" style={{ gap: 4, fontSize: 12 }}><IcLock size={14} />{p.resol ? 'depois de tentar' : 'abra a anterior'}</span>}
               </div>
               {p.aberto && (

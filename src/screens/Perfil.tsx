@@ -29,7 +29,7 @@ export default function Perfil() {
     return { r, pct: tot ? Math.round(soma / tot) : 0 };
   }), [recortes, conteudo, prefs.lingua, dados.temas]);
 
-  const salvarPrefs = (mud: Partial<typeof prefs>) => atualizar((d) => ({ ...d, prefs: { ...d.prefs, ...mud } }), { prefs: true });
+  const salvarPrefs = (mud: Partial<typeof prefs>) => atualizar((d) => ({ ...d, prefs: { ...d.prefs, ...mud } }), { prefs: Object.keys(mud) as (keyof typeof prefs)[] });
 
   const conq = folha && CONQUISTAS.find((c) => c.codigo === folha);
   const metaAtual = METAS.find((m) => m.xp === prefs.meta_xp) ?? METAS[2];

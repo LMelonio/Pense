@@ -89,7 +89,10 @@ export default function Licao({ desafio = false }: { desafio?: boolean }) {
   }
 
   function sessao() {
-    sessaoRef.current ??= repo.iniciarSessao({ tipo: desafio ? 'desafio' : 'licao', exame_id: exame.id, recorte_id, assunto: desafio ? null : assunto, unidade: desafio ? unidadeIdx : null })
+    sessaoRef.current ??= repo.iniciarSessao({
+      tipo: desafio ? 'desafio' : 'licao', exame_id: exame.id, recorte_id, assunto: desafio ? null : assunto, unidade: desafio ? unidadeIdx : null,
+      questoes: questoes.map((x) => x.id)
+    })
       .catch((e) => { sessaoRef.current = null; throw e; });
     return sessaoRef.current;
   }
@@ -198,7 +201,7 @@ export default function Licao({ desafio = false }: { desafio?: boolean }) {
         {desafio ? <span className="pill" style={{ background: 'var(--lav-soft)', color: 'var(--lav-dark)' }}>Desafio</span>
           : <span className="row" role="img" aria-label={plural(vidas, 'vida', 'vidas')} style={{ gap: 4, fontFamily: 'var(--font-title)', fontWeight: 600, color: 'var(--coral-dark)' }}><IcCoracao size={22} />{vidas}</span>}
       </header>
-      <div className="screen licao" style={{ paddingBottom: verificada ? '75vh' : 120 }}>
+      <div className="screen licao" tabIndex={0} role="region" aria-label="Questão" style={{ paddingBottom: verificada ? '75vh' : 120 }}>
         <QuestaoView key={q.id} q={q} recorte={conteudo.recortes.find((r) => r.id === q.recorte_id) ?? recorte} nomeExame={exame.nome} textoBase={q.texto_base_id ? conteudo.textos_base[q.texto_base_id] : null}
           estados={estados} escolher={(l) => !verificada && setSel(l)} bloqueado={verificada} />
       </div>

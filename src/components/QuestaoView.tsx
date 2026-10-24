@@ -52,7 +52,7 @@ export function QuestaoView({ q, recorte, nomeExame, textoBase, estados, escolhe
           const anim = e === 'errada' ? ' a-shake' : e === 'certa' ? ' a-pop' : '';
           return (
             <button key={a.letra} type="button" role="radio" aria-checked={e === 'sel'} className={`alt ${cls}${anim}`} disabled={bloqueado || e === 'riscada'} onClick={() => escolher(a.letra)}>
-              <span className="letra" aria-hidden="true">{a.letra}</span>
+              <span className="letra">{a.letra}</span>
               <span className="alt-body">
                 {a.texto ? <Texto md={a.texto} className="" /> : a.imagem ? <img src={`./${a.imagem}`} alt={`Alternativa ${a.letra}`} /> : null}
               </span>

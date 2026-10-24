@@ -71,6 +71,7 @@ export const demoRepo: Repo = {
   async salvar(d) { gravar(kDados(d.perfil.id), d); },
   async iniciarSessao() { return novoId(); },
   async responder() { /* o resultado já foi aplicado na tela e gravado pelo salvar */ },
+  async abrirDica() { /* no navegador vale o número de dicas da tela */ },
   async concluirSessao() { return null; },
   async ganharVidaAnuncio() { /* a vida já foi somada na tela e gravada pelo salvar */ },
   async excluirConta() {

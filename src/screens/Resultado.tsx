@@ -34,25 +34,25 @@ export default function Resultado() {
 
   if (r.perfeita || subiuCoroa) {
     return (
-      <div className="app" style={{ background: 'var(--primary)', color: '#fff' }}>
+      <div className="app" style={{ background: 'var(--fundo-festa)', color: '#fff' }}>
         <div className="screen" style={{ alignItems: 'stretch', justifyContent: 'space-between', paddingTop: 28, position: 'relative' }}>
           <Confete />
-          <span className="pill" style={{ alignSelf: 'center', background: 'rgba(255,255,255,.16)', height: 30 }}>Lição perfeita · {r.acertos} de {r.total} certas</span>
+          <span className="pill" style={{ alignSelf: 'center', background: 'rgba(0,0,0,.15)', height: 30 }}>Lição perfeita · {r.acertos} de {r.total} certas</span>
           <div className="col" style={{ alignItems: 'center', gap: 4 }}>
             <IcCoroa size={100} fill={CORES_COROA[r.coroaDepois][0]} stroke={CORES_COROA[r.coroaDepois][1]} />
             <Mascote largura={170} humor="comemorando" />
             <h1 style={{ fontSize: 32, textAlign: 'center', marginTop: 10 }}>{subiuCoroa ? `Coroa de ${NOMES_COROA[r.coroaDepois]}!` : 'Lição perfeita!'}</h1>
-            <p style={{ textAlign: 'center', opacity: 0.88 }}>{subiuCoroa ? `${r.tema} subiu de ${NOMES_COROA[r.coroaAntes]} para ${NOMES_COROA[r.coroaDepois]}.` : `${r.tema}: nenhum erro.`}</p>
+            <p style={{ textAlign: 'center' }}>{subiuCoroa ? `${r.tema} subiu de ${NOMES_COROA[r.coroaAntes]} para ${NOMES_COROA[r.coroaDepois]}.` : `${r.tema}: nenhum erro.`}</p>
           </div>
-          <div className="col" style={{ background: 'rgba(255,255,255,.12)', borderRadius: 22, padding: 16, gap: 10 }}>
+          <div className="col" style={{ background: 'rgba(0,0,0,.15)', borderRadius: 22, padding: 16, gap: 10 }}>
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <span className="row big" style={{ gap: 6, fontSize: 26 }}><IcRaio size={20} />+{r.xp} XP</span>
-              <span className="small" style={{ opacity: 0.85 }}>Nível {nv.nivel} · {dados.perfil.xp_total.toLocaleString('pt-BR')}/{nv.prox.toLocaleString('pt-BR')}</span>
+              <span className="small">Nível {nv.nivel} · {dados.perfil.xp_total.toLocaleString('pt-BR')}/{nv.prox.toLocaleString('pt-BR')}</span>
             </div>
             <div className="bar" style={{ height: 12, background: 'rgba(255,255,255,.18)' }}><span style={{ width: `${nv.pct}%`, background: '#F2C14E' }} /></div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <span style={{ background: 'rgba(255,255,255,.1)', borderRadius: 14, padding: '10px 12px' }} className="small"><b className="big" style={{ display: 'block', fontSize: 18 }}>{plural(seq, 'dia', 'dias')}</b>de sequência</span>
-              <span style={{ background: 'rgba(255,255,255,.1)', borderRadius: 14, padding: '10px 12px' }} className="small"><b className="big" style={{ display: 'block', fontSize: 18 }}>+5 XP</b>bônus sem erros</span>
+              <span style={{ background: 'rgba(0,0,0,.15)', borderRadius: 14, padding: '10px 12px' }} className="small"><b className="big" style={{ display: 'block', fontSize: 18 }}>{plural(seq, 'dia', 'dias')}</b>de sequência</span>
+              <span style={{ background: 'rgba(0,0,0,.15)', borderRadius: 14, padding: '10px 12px' }} className="small"><b className="big" style={{ display: 'block', fontSize: 18 }}>+5 XP</b>bônus sem erros</span>
             </div>
             {conquistas.length > 0 && <span className="small">Nova conquista: <b>{conquistas.join(', ')}</b></span>}
           </div>
@@ -85,7 +85,7 @@ export default function Resultado() {
           {aviso && <p className="small" style={{ textAlign: 'center' }}>{aviso}</p>}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {[['XP', `+${r.xp}`, '#6A5AE0', '#4B3DB8'], ['Acertos', `${r.acertos}/${r.total}`, '#3FA37A', '#1C7A52'], ['Tempo', `${min}:${seg}`, '#4C7BD9', '#2F5DBF']].map(([n, v, borda, cor]) => (
+          {[['XP', `+${r.xp}`, '#6A5AE0', 'var(--res-xp)'], ['Acertos', `${r.acertos}/${r.total}`, 'var(--ok-forte)', 'var(--res-acertos)'], ['Tempo', `${min}:${seg}`, 'var(--azul-forte)', 'var(--res-tempo)']].map(([n, v, borda, cor]) => (
             <div key={n} className="a-rise" style={{ borderRadius: 18, border: `2px solid ${borda}`, background: borda, overflow: 'hidden' }}>
               <span style={{ display: 'grid', placeItems: 'center', height: 26, fontSize: 12, fontWeight: 600, color: '#fff', textTransform: 'uppercase', letterSpacing: '.04em' }}>{n}</span>
               <span className="big" style={{ display: 'grid', placeItems: 'center', background: 'var(--card)', borderRadius: 15, padding: '12px 4px', fontSize: 24, color: cor }}>{v}</span>
@@ -96,7 +96,7 @@ export default function Resultado() {
           <Anel pct={Math.min(100, (xpHoje / meta) * 100)} tam={48} esp={6} cor="#F2A93B" trilho="var(--amber-soft)"><IcChama size={20} /></Anel>
           <div className="col" style={{ gap: 2 }}>
             <span className="h2" style={{ fontSize: 17 }}>{xpHoje >= meta ? `Meta do dia batida · ${plural(seq, 'dia', 'dias')}` : `Meta do dia: ${xpHoje}/${meta} XP`}</span>
-            <span className="muted">{xpHoje >= meta ? 'Sua sequência continua!' : `Faltam ${meta - xpHoje} XP para a meta.`}</span>
+            <span className="muted">{xpHoje >= meta ? (seq === 1 ? 'Sua sequência começou!' : 'Sua sequência continua!') : `Faltam ${meta - xpHoje} XP para a meta.`}</span>
           </div>
         </div>
         {r.erros.length > 0 && (

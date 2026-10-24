@@ -26,7 +26,7 @@ export default function Configuracoes() {
   const [google, setGoogle] = useState(false);
   useEffect(() => { repo.provedores().then((p) => setGoogle(p.google)); }, []);
 
-  const salvar = (m: Partial<Preferencias>) => atualizar((d) => ({ ...d, prefs: { ...d.prefs, ...m } }), { prefs: true });
+  const salvar = (m: Partial<Preferencias>) => atualizar((d) => ({ ...d, prefs: { ...d.prefs, ...m } }), { prefs: Object.keys(m) as (keyof Preferencias)[] });
   const visitante = !!usuario?.anonimo;
   const acesso = visitante ? 'Sem login (visitante)' : `${usuario?.provedor === 'google' ? 'Google' : 'E-mail'}${usuario?.email ? ` · ${usuario.email}` : ''}`;
 

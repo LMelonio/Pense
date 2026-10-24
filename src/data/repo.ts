@@ -1,9 +1,9 @@
 // Camada de dados: o app fala só com esta interface.
 // Com VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY definidos, usa o Supabase; sem eles, o modo demonstração (navegador).
-import type { Conteudo, DadosAluno, Sessao, Tentativa } from './types';
+import type { Conteudo, DadosAluno, Preferencias, Sessao, Tentativa } from './types';
 
-/** Início de uma lição, desafio ou revisão. */
-export type NovaSessao = Pick<Sessao, 'tipo' | 'exame_id' | 'recorte_id' | 'assunto'> & { unidade: number | null };
+/** Início de uma lição, desafio ou revisão. Lição e desafio levam as questões montadas (o servidor confere a lista). */
+export type NovaSessao = Pick<Sessao, 'tipo' | 'exame_id' | 'recorte_id' | 'assunto'> & { unidade: number | null; questoes: string[] | null };
 
 /** Resultado calculado pelo servidor ao concluir a sessão. */
 export interface ResumoSessao {
@@ -22,7 +22,8 @@ export interface Provedores { google: boolean; email: boolean; anonimo: boolean 
 export interface Mudancas {
   nome?: boolean;
   perfil?: boolean;
-  prefs?: boolean;
+  /** Só os campos alterados: duas abas ou aparelhos mudando campos diferentes não apagam a mudança um do outro. */
+  prefs?: (keyof Preferencias)[];
   temas?: string[];
   revisao?: string[];
   xpDia?: string[];
@@ -55,6 +56,8 @@ export interface Repo {
   iniciarSessao(s: NovaSessao): Promise<string>;
   /** Registra uma resposta. No Supabase o servidor confere o gabarito, gasta a vida e agenda a revisão. */
   responder(sessao: string, t: Tentativa): Promise<void>;
+  /** Abriu a dica 1 ou 2 na revisão (no Supabase, o XP da questão usa este registro). */
+  abrirDica(sessao: string, questao_id: string, dica: number): Promise<void>;
   /** Fecha a sessão. No Supabase devolve o resultado calculado no servidor; no modo demonstração, null (vale o cálculo local). */
   concluirSessao(sessao: string): Promise<ResumoSessao | null>;
   /** +1 vida por anúncio assistido (no Supabase, com limite diário no servidor). */
@@ -100,13 +103,17 @@ const ERROS: [RegExp, string][] = [
   [/abort|timed? ?out|demorou/i, 'O servidor demorou para responder. Tente de novo.'],
   [/sem_vidas/i, 'Suas vidas acabaram.'],
   [/limite_anuncios/i, 'Você já ganhou 5 vidas com anúncios hoje. Espere a recarga ou conheça o Pense Pro.'],
-  [/permission denied|row-level security|violates|constraint|sessão (não encontrada|já concluída)/i, 'O servidor recusou os dados. Recarregue o app e tente de novo.'],
+  [/desafio_bloqueado/i, 'Este desafio ainda está bloqueado. Faça todos os temas da unidade (e vença o desafio da anterior).'],
+  [/permission denied|row-level security|violates|constraint|sessão (não encontrada|já concluída)|fora da (sessão|revisão)|questão encerrada/i, 'O servidor recusou os dados. Recarregue o app e tente de novo.'],
   [/access_denied|cancel/i, 'O login foi cancelado.']
 ];
 
 export function traduzirErro(msg: string) {
   return ERROS.find(([re]) => re.test(msg))?.[1] ?? msg;
 }
+
+/** Falha de conexão ou de tempo (vale tentar de novo), e não recusa do servidor. */
+export const falhaDeRede = (e: unknown) => /fetch|network|abort|timed? ?out|demorou|conex/i.test((e as Error).message);
 
 /** Erro que o Supabase devolve na URL ao voltar do Google ou de um link de e-mail. */
 export function erroDoRetorno() {
