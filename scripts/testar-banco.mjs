@@ -286,6 +286,28 @@ const deHistoria = porRecorte('enem-HIS').map((q) => q.id);
   check('D05', 'Unidades do banco iguais às do app', iguais === total, `${iguais}/${total} ${dif.slice(0, 3).join(' ')}`);
 }
 
+// ---------- Vidas: recarga de 1 a cada 2 horas e +1 por anúncio, até 5 em 24 horas (0008)
+{
+  const vidasAgora = async (vidas, minutosAtras) =>
+    (await db.query(`select public._vidas_agora($1, now() - make_interval(mins => $2)) as v`, [vidas, minutosAtras])).rows[0].v;
+  check('V01', 'Sem recarga antes de 2 horas', (await vidasAgora(1, 119)) === 1);
+  check('V02', 'Uma vida volta com 2 horas', (await vidasAgora(1, 121)) === 2);
+  check('V03', 'Recarga nunca passa de 3', (await vidasAgora(0, 600)) === 3);
+
+  const a = await criarAluno(db, uid());
+  await db.query("update perfis set vidas = 1, vidas_atualizadas_em = now() - interval '150 minutes' where id = $1", [a.id]);
+  const nova = (await db.query('select public._ajustar_vidas($1, -1) as v', [a.id])).rows[0].v;
+  const marco = (await db.query("select round(extract(epoch from now() - vidas_atualizadas_em) / 60)::int as m from perfis where id = $1", [a.id])).rows[0].m;
+  check('V04', 'Erro depois de uma recarga mantém o relógio da próxima vida', nova === 1 && marco === 30, `vidas ${nova}, próxima recarga começou há ${marco} min`);
+
+  await db.query('update perfis set vidas = 0, vidas_atualizadas_em = now() where id = $1', [a.id]);
+  const r = await a.rpc('ganhar_vida_anuncio', {});
+  check('V05', 'Anúncio devolve 1 vida na hora', r.vidas === 1, JSON.stringify(r));
+  for (let i = 0; i < 4; i++) await a.rpc('ganhar_vida_anuncio', {});
+  const e = await erro(a.rpc('ganhar_vida_anuncio', {}));
+  check('RP19', '6º anúncio em 24 horas é recusado', /limite_anuncios/.test(e ?? ''), e ?? 'aceitou');
+}
+
 // ---------- Gravação direta e permissões
 {
   const a = await criarAluno(db, uid());

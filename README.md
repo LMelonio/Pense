@@ -37,7 +37,7 @@ No primeiro acesso o aluno escolhe só a **língua estrangeira** (Inglês ou Esp
 ### Matérias e vidas
 
 - O conteúdo do ENEM é organizado por **matéria** (Português, Literatura, Inglês ou Espanhol, Artes, Educação Física, Tecnologia, História, Geografia, Filosofia, Sociologia, Biologia, Química, Física e Matemática). Dentro de cada matéria ficam os **subconteúdos** (ex.: Geografia › Urbanização). Início e Trilha usam as matérias nas abas.
-- O aluno tem **3 vidas**; errar numa lição gasta 1, e 1 volta a cada 30 minutos. Sem vidas, ele escolhe: **esperar**, **assistir a um anúncio** (+1 vida) ou conhecer o **Pense Pro** (vidas ilimitadas, ainda "em breve"). Terminar uma revisão recuperando pelo menos uma questão também devolve 1 vida. O servidor limita as vidas extras a 5 por dia com anúncio e 5 por dia com revisão.
+- O aluno tem **3 vidas**; errar numa lição gasta 1, e 1 volta a cada 2 horas. Sem vidas, ele escolhe: **esperar**, **assistir a um anúncio** (+1 vida) ou conhecer o **Pense Pro** (vidas ilimitadas, ainda "em breve"). Terminar uma revisão recuperando pelo menos uma questão também devolve 1 vida. O servidor limita as vidas extras a 5 por dia com anúncio e 5 por dia com revisão.
 - O anúncio ainda é um **espaço reservado** com contagem de 15 s (`src/components/AnuncioPremiado.tsx`). Para veicular anúncios de verdade, troque o miolo do componente pela chamada da rede de anúncios premiados (ex.: Google Ad Manager).
 
 > **E-mails do Supabase:** o envio padrão do Supabase só entrega para os e-mails da equipe do projeto e tem limite de poucos envios por hora. Para "Esqueci minha senha" funcionar para qualquer aluno, configure um SMTP próprio (Resend, Brevo, SES…) em *Authentication › Emails › SMTP Settings*. Com "Confirm email" desligado, criar conta não depende de e-mail.
@@ -45,7 +45,7 @@ No primeiro acesso o aluno escolhe só a **língua estrangeira** (Inglês ou Esp
 ## 3. Criar o banco no Supabase (10 min)
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (plano Free).
-2. Abra o **SQL Editor** e rode `supabase/setup_completo.sql`. Ele cria as tabelas, as regras de acesso (RLS), os gatilhos e os dados base (é a soma das migrations `0001` a `0007`; num banco que já existe, rode só as migrations que faltam).
+2. Abra o **SQL Editor** e rode `supabase/setup_completo.sql`. Ele cria as tabelas, as regras de acesso (RLS), os gatilhos e os dados base (é a soma das migrations `0001` a `0008`; num banco que já existe, rode só as migrations que faltam).
 3. Copie `.env.example` para `.env` e preencha, com os dados de *Project Settings › API Keys*:
    - `VITE_SUPABASE_URL`: `https://<id-do-projeto>.supabase.co` (não o link do painel).
    - `VITE_SUPABASE_ANON_KEY`: a chave **publishable** (`sb_publishable_…`) ou a **anon** legada (`eyJ…`).

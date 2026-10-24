@@ -6,7 +6,7 @@ import { CORES_COROA, IcCheck, IcCoracao, IcCoroa, IcRevisar } from '../componen
 import { SemVidas } from '../components/SemVidas';
 import { NOMES_COROA, VIDAS_MAX, chaveTema, hoje, recortesVisiveis, revisaoVencida, sequenciaAtual, temasDoRecorte, vidasAgora, QUESTOES_POR_LICAO, XP_ACERTO } from '../domain/regras';
 import type { InfoTema } from '../domain/regras';
-import { plural } from '../lib/texto';
+import { duracao, plural } from '../lib/texto';
 
 const DIAS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 
@@ -75,7 +75,7 @@ export default function Inicio() {
             <div className="row" style={{ gap: 3 }} role="img" aria-label={`${vidas} de ${VIDAS_MAX} vidas`}>
               {Array.from({ length: VIDAS_MAX }, (_, i) => <IcCoracao key={i} size={20} bater={false} cor={i < vidas ? '#E5534B' : 'var(--line)'} />)}
             </div>
-            <span className="muted" style={{ textAlign: 'right' }}>{vidas >= VIDAS_MAX ? 'Vidas cheias' : `Mais 1 vida em ${proximaEmMin} min ou já, revisando`}</span>
+            <span className="muted" style={{ textAlign: 'right' }}>{vidas >= VIDAS_MAX ? 'Vidas cheias' : `Mais 1 vida em ${duracao(proximaEmMin)} ou já, revisando`}</span>
           </div>
         </section>
 
