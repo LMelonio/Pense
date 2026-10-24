@@ -159,3 +159,4 @@ No modo demonstração (sem Supabase) vale só o cálculo do app, salvo no naveg
 | `npm run typecheck` | checa os tipos |
 | `npm run seed` | carrega as questões no Supabase (precisa da chave secret no `.env`) |
 | `npm run gerar-sql` | regera `supabase/seed/*.sql` a partir do `conteudo.json` |
+| `node scripts/testar-banco.mjs` | testa as regras do banco (migrations, pontuação, trapaças) num Postgres local; antes, uma vez: `npm install --no-save @electric-sql/pglite@0.2.17`. Roda sozinho no GitHub a cada push (`.github/workflows/testes.yml`) |
