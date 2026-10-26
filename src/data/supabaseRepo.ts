@@ -1,9 +1,9 @@
 // Implementação com Supabase (Auth + Postgres com RLS). Tabelas e funções em supabase/migrations.
 // XP, vidas, sequência, coroas, revisão e conquistas são calculados no banco (0006): o app manda as respostas.
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import type { Mudancas, Provedores, Repo, ResumoSessao, Usuario } from './repo';
+import type { Mudancas, Provedores, Repo, Usuario } from './repo';
 import { carregarConteudoLocal, falhaDeRede, traduzirErro, urlBase } from './repo';
-import type { Conteudo, DadosAluno, Questao } from './types';
+import type { Conteudo, DadosAluno, Questao, ResumoSessao } from './types';
 import { PREFS_PADRAO } from './types';
 import { dadosIniciais } from './demoRepo';
 import { VIDAS_MAX } from '../domain/regras';
@@ -133,12 +133,12 @@ export function criarSupabaseRepo(sb: SupabaseClient, url: string, chave: string
       const { data } = sb.auth.onAuthStateChange((_e, s) => { setTimeout(() => cb(paraUsuario(s?.user)), 0); });
       return () => data.subscription.unsubscribe();
     },
-    async entrarEmail(email, senha) {
-      const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+    async entrarEmail(email, senha, captcha) {
+      const { error } = await sb.auth.signInWithPassword({ email, password: senha, options: { captchaToken: captcha } });
       erroAuth(error);
     },
-    async cadastrarEmail(email, senha, nome) {
-      const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { nome }, emailRedirectTo: urlBase() } });
+    async cadastrarEmail(email, senha, nome, captcha) {
+      const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { nome }, emailRedirectTo: urlBase(), captchaToken: captcha } });
       erroAuth(error);
       return { confirmarEmail: !data.session };
     },
@@ -146,8 +146,8 @@ export function criarSupabaseRepo(sb: SupabaseClient, url: string, chave: string
       const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: urlBase(), queryParams: { prompt: 'select_account' } } });
       erroAuth(error);
     },
-    async entrarAnonimo() {
-      const { error } = await sb.auth.signInAnonymously({ options: { data: { nome: 'Estudante' } } });
+    async entrarAnonimo(captcha) {
+      const { error } = await sb.auth.signInAnonymously({ options: { data: { nome: 'Estudante' }, captchaToken: captcha } });
       erroAuth(error);
     },
     async vincularEmail(email, senha) {
@@ -164,9 +164,9 @@ export function criarSupabaseRepo(sb: SupabaseClient, url: string, chave: string
       const { error } = await sb.auth.linkIdentity({ provider: 'google', options: { redirectTo: urlBase() } });
       erroAuth(error);
     },
-    async recuperarSenha(email) {
+    async recuperarSenha(email, captcha) {
       // ?recuperar=1 avisa o app, na volta, para abrir a tela de nova senha (no fluxo PKCE o Supabase não manda PASSWORD_RECOVERY).
-      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: `${urlBase()}?recuperar=1` });
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: `${urlBase()}?recuperar=1`, captchaToken: captcha });
       erroAuth(error);
     },
     async definirSenha(senha) {

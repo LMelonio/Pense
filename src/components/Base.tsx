@@ -1,46 +1,82 @@
 import { NavLink } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { IcChama, IcCoracao, IcHome, IcPerfil, IcRaio, IcRevisar, IcTrilha } from './Icones';
-import { useDados } from '../state/AppContext';
+import { useProgresso } from '../state/AppContext';
 import { sequenciaAtual, vidasAgora } from '../domain/regras';
 import { supabaseConfigurado } from '../lib/config';
+import type { Recorte } from '../data/types';
 
-export const CORES_RECORTE: Record<string, { forte: string; suave: string; barra: string }> = {
-  mt: { forte: '#2F5DBF', suave: '#E1EAFB', barra: '#4C7BD9' },
-  lc: { forte: '#A2441F', suave: '#FCE7DD', barra: '#E07A4F' },
-  ch: { forte: '#8A6608', suave: '#FBF0D3', barra: '#D8A93B' },
-  cn: { forte: '#1C7A52', suave: '#DDF2E7', barra: '#3FA37A' },
-  lav: { forte: '#4B3DB8', suave: '#ECE9FF', barra: '#6A5AE0' }
-};
-export const corDe = (cor: string) => CORES_RECORTE[cor] ?? CORES_RECORTE.lav;
+/** Cores de cada matéria (variáveis --rc-* do global.css, que mudam no modo noturno).
+ * forte: texto e bordas · suave: fundo claro · fundo: cor sólida sob texto branco · barra: progresso. */
+export interface CorRecorte { forte: string; suave: string; fundo: string; barra: string }
+const cor = (k: string): CorRecorte => ({ forte: `var(--rc-${k}-forte)`, suave: `var(--rc-${k}-suave)`, fundo: `var(--rc-${k}-fundo)`, barra: `var(--rc-${k}-barra)` });
+export const CORES_RECORTE: Record<string, CorRecorte> = { mt: cor('mt'), lc: cor('lc'), ch: cor('ch'), cn: cor('cn'), lav: cor('lav') };
+export const corDe = (c: string | null | undefined) => (c && CORES_RECORTE[c]) || CORES_RECORTE.lav;
 
-export function BarraNav() {
-  const itens = [
-    { to: '/inicio', nome: 'Início', Ic: IcHome },
-    { to: '/trilha', nome: 'Trilha', Ic: IcTrilha },
-    { to: '/revisar', nome: 'Revisar', Ic: IcRevisar },
-    { to: '/perfil', nome: 'Perfil', Ic: IcPerfil }
-  ];
+const ITENS_NAV = [
+  { to: '/inicio', nome: 'Início', Ic: IcHome },
+  { to: '/trilha', nome: 'Trilha', Ic: IcTrilha },
+  { to: '/revisar', nome: 'Revisar', Ic: IcRevisar },
+  { to: '/perfil', nome: 'Perfil', Ic: IcPerfil }
+];
+
+/** Sem props: não re-renderiza quando os dados do aluno mudam. */
+export const BarraNav = memo(function BarraNav() {
   return (
     <nav className="nav" aria-label="Navegação principal">
-      {itens.map(({ to, nome, Ic }) => (
+      {ITENS_NAV.map(({ to, nome, Ic }) => (
         <NavLink key={to} to={to} className={({ isActive }) => (isActive ? 'active' : '')}>
           <span className="ico"><Ic /></span>{nome}
         </NavLink>
       ))}
     </nav>
   );
-}
+});
 
 export function Stats() {
-  const { dados } = useDados();
+  const { dados } = useProgresso();
+  if (!dados) return null;
   const { vidas } = vidasAgora(dados.perfil);
   return (
-    <div className="row" style={{ gap: 6 }}>
+    <div className="row stats gap-6">
       <span className="chip" title="Sequência de dias"><IcChama />{sequenciaAtual(dados.perfil)}</span>
       <span className="chip" title="Pontos de experiência"><IcRaio />{dados.perfil.xp_total.toLocaleString('pt-BR')}</span>
       <span className="chip" title="Vidas"><IcCoracao />{vidas}</span>
+    </div>
+  );
+}
+
+/** Abas das matérias (Início e Trilha). No computador, a rodinha do mouse rola a faixa de lado; a aba escolhida
+ * fica sempre à vista. */
+export function SeletorMaterias({ recortes, valor, mudar }: { recortes: Recorte[]; valor: string | undefined; mudar: (id: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const faixa = ref.current;
+    if (!faixa) return;
+    function rodinha(e: WheelEvent) {
+      if (!faixa || Math.abs(e.deltaY) <= Math.abs(e.deltaX) || faixa.scrollWidth <= faixa.clientWidth) return;
+      const antes = faixa.scrollLeft;
+      faixa.scrollLeft += e.deltaY;
+      if (faixa.scrollLeft !== antes) e.preventDefault(); // nas pontas, a rodinha volta a rolar a tela
+    }
+    faixa.addEventListener('wheel', rodinha, { passive: false });
+    return () => faixa.removeEventListener('wheel', rodinha);
+  }, []);
+  useEffect(() => { // só de lado: scrollIntoView rolaria também a tela
+    const faixa = ref.current;
+    const aba = faixa?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!faixa || !aba) return;
+    const f = faixa.getBoundingClientRect(), a = aba.getBoundingClientRect(), margem = 28;
+    if (a.left < f.left + margem) faixa.scrollLeft -= f.left + margem - a.left;
+    else if (a.right > f.right - margem) faixa.scrollLeft += a.right - (f.right - margem);
+  }, [valor]);
+  return (
+    <div className="tabs" role="tablist" aria-label="Matérias" ref={ref}>
+      {recortes.map((r) => {
+        const c = corDe(r.cor); const on = r.id === valor;
+        return <button key={r.id} role="tab" aria-selected={on} className="tab" onClick={() => mudar(r.id)} style={on ? { borderColor: c.forte, background: c.suave, color: c.forte } : undefined}><span className="dot" style={{ background: c.barra }} />{r.nome}</button>;
+      })}
     </div>
   );
 }
@@ -50,11 +86,11 @@ export function Anel({ pct, tam = 72, esp = 9, cor = '#2BA28F', trilho = 'var(--
   const c = 2 * Math.PI * r;
   return (
     <div style={{ position: 'relative', width: tam, height: tam, flexShrink: 0 }}>
-      <svg width={tam} height={tam} style={{ transform: 'rotate(-90deg)' }} aria-hidden="true">
+      <svg width={tam} height={tam} className="anel-svg" aria-hidden="true">
         <circle cx={tam / 2} cy={tam / 2} r={r} fill="none" stroke={trilho} strokeWidth={esp} />
-        <circle cx={tam / 2} cy={tam / 2} r={r} fill="none" stroke={cor} strokeWidth={esp} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - Math.min(1, Math.max(0, pct / 100)))} style={{ transition: 'stroke-dashoffset 1s cubic-bezier(.3,.8,.3,1)' }} />
+        <circle cx={tam / 2} cy={tam / 2} r={r} fill="none" stroke={cor} strokeWidth={esp} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - Math.min(1, Math.max(0, pct / 100)))} className="anel-progresso" />
       </svg>
-      <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', textAlign: 'center' }}>{children}</div>
+      <div className="anel-centro">{children}</div>
     </div>
   );
 }
@@ -131,7 +167,7 @@ export function CampoSenha({ valor, mudar, rotulo = 'Senha', nova = false }: { v
 
 export function BannerDemo() {
   if (supabaseConfigurado) return null;
-  return <div className="banner-demo">Modo demonstração: o progresso fica só neste navegador. Configure o Supabase para contas reais.</div>;
+  return <aside className="banner-demo" aria-label="Modo demonstração">Modo demonstração: o progresso fica só neste navegador. Configure o Supabase para contas reais.</aside>;
 }
 
 // Sons curtos (Web Audio) e vibração, respeitando as preferências.

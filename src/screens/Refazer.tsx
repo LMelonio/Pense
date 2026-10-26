@@ -1,67 +1,118 @@
 // Refazer com dicas: Dica 1 → Dica 2 → Resolução (só depois de tentar). Duas tentativas por questão.
-// No Supabase, as tentativas vão ao servidor, que reagenda a fila e calcula XP e a vida no fim.
-import { useMemo, useRef, useState } from 'react';
+// As tentativas vão ao servidor, que reagenda a fila e calcula o XP e a vida no fim.
+// Questão que ainda não venceu (revisão adiantada) é treino: acertar não vale XP nem tira da lista; ela volta amanhã.
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDados } from '../state/AppContext';
-import { repo } from '../lib/config';
+import { useSessaoEstudo } from '../state/useSessaoEstudo';
 import { plural } from '../lib/texto';
 import { QuestaoView } from '../components/QuestaoView';
 import type { EstadoAlt } from '../components/QuestaoView';
 import { IcLampada, IcLock, IcRevisar, IcX, Mascote } from '../components/Icones';
 import { Texto } from '../components/Texto';
 import { Folha, tocar, vibrar } from '../components/Base';
-import { XP_REVISAO, agendarErro, ajustarVidas, areasDoExame, hoje, novasConquistas, reagendar, revisaoPendente, revisaoVencida, somarXP } from '../domain/regras';
-import { falhaDeRede } from '../data/repo';
-import type { ResumoSessao } from '../data/repo';
-import type { Questao, Tentativa } from '../data/types';
+import { QUESTOES_POR_REVISAO, revisaoPendente, revisaoVencida, venceu, vidaPeloTreino, xpDaRevisao } from '../domain/regras';
+import { registrarRevisao } from '../domain/sessoes';
+import { catalogo } from '../domain/catalogo';
+import type { ItemRevisao, Questao, Tentativa } from '../data/types';
 
-const MAX_SESSAO = 10;
+const PASSOS_DOMINADA = [7, 21, 60];
+const reduzirMovimento = () => document.documentElement.dataset.motion === 'reduce' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Uma questão terminada: acertou, XP ganho e se valia (vencida) ou era treino. */
+interface Feita { acertou: boolean; xp: number; vencida: boolean }
+
+/** O texto do fim da revisão, com o que aconteceu com cada questão. */
+function textoDoFim(feitas: Feita[]) {
+  const recuperadas = feitas.filter((f) => f.acertou && f.vencida).length;
+  const treino = feitas.filter((f) => f.acertou && !f.vencida).length;
+  const voltam = feitas.length - recuperadas - treino;
+  const total = feitas.length;
+  if (recuperadas === total) return total === 1 ? 'Você recuperou a questão!' : `Você recuperou as ${total} questões!`;
+  if (treino === total) return total === 1 ? 'Você acertou no treino. Ela volta amanhã, valendo XP.' : `Você acertou as ${total} no treino. Elas voltam amanhã, valendo XP.`;
+  if (voltam === total) return total === 1 ? 'Essa ainda não foi. Ela volta amanhã.' : 'Essas ainda não foram. Elas voltam amanhã.';
+  const partes = [
+    recuperadas && `recuperou ${recuperadas}`,
+    treino && `acertou ${treino} no treino`,
+    voltam && `${voltam} ${voltam === 1 ? 'volta' : 'voltam'} amanhã`
+  ].filter(Boolean) as string[];
+  return `Você ${partes.slice(0, -1).join(', ')} e ${partes[partes.length - 1]}.`;
+}
 
 export default function Refazer() {
-  const { dados, conteudo, atualizar, sincronizar, avisar } = useDados();
+  const { dados, conteudo, atualizar } = useDados();
   const [params] = useSearchParams();
   const nav = useNavigate();
-  const questoes = useMemo(() => {
+  // Busca: ids (erros de uma lição), recorte + tema (um grupo da tela Revisar), recorte + temas (a unidade da trilha,
+  // separados por |); todas=1 inclui as que ainda não venceram.
+  const [questoes] = useState<Questao[]>(() => {
     const ids = params.get('ids')?.split(',').filter(Boolean);
     const tema = params.get('tema');
+    const temas = params.get('temas')?.split('|').filter(Boolean);
     const recorte = params.get('recorte');
     let itens = params.get('todas') || ids ? revisaoPendente(dados) : revisaoVencida(dados);
     if (ids) itens = itens.filter((r) => ids.includes(r.questao_id));
-    const qs = itens.map((r) => conteudo.questoes.find((q) => q.id === r.questao_id)).filter((q): q is Questao => !!q);
-    return qs.filter((q) => (!tema || q.assunto === tema) && (!recorte || q.recorte_id === recorte)).slice(0, MAX_SESSAO);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const qs = itens.map((r) => catalogo(conteudo).questao(r.questao_id)).filter((q): q is Questao => !!q);
+    return qs.filter((q) => (!tema || q.assunto === tema) && (!temas || temas.includes(q.assunto)) && (!recorte || q.recorte_id === recorte)).slice(0, QUESTOES_POR_REVISAO);
+  });
+  const filtrada = ['ids', 'tema', 'temas', 'recorte'].some((k) => params.has(k)); // um grupo, não a revisão inteira
+  // Como cada questão estava ao abrir a revisão (a tela reagenda na hora, mas os textos falam do antes)
+  const [antes] = useState(() => {
+    const agora = Date.now();
+    return Object.fromEntries(questoes.map((q) => [q.id, { item: dados.revisao[q.id] as ItemRevisao | undefined, vencida: !!dados.revisao[q.id] && venceu(dados.revisao[q.id], agora) }]));
+  });
+  const guardados = useMemo(() => revisaoPendente(dados).length, [dados]);
+  const [vidaTreino] = useState(() => vidaPeloTreino(dados)); // a 1ª vez sem vidas: o treino devolve 1 vida
 
   const [i, setI] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
   const [erradas, setErradas] = useState<string[]>([]);
   const [dicas, setDicas] = useState(0);
   const [resultado, setResultado] = useState<null | 'acertou' | 'falhou'>(null);
-  const [res, setRes] = useState<number[]>([]); // XP por questão terminada
-  const [fim, setFim] = useState<{ xp: number; recuperadas: number; total: number } | null>(null);
+  const [feitas, setFeitas] = useState<Feita[]>([]);
+  const [fim, setFim] = useState<{ xp: number; vida: boolean; feitas: Feita[] } | null>(null);
   const [concluindo, setConcluindo] = useState(false);
   const [confirmarSaida, setConfirmarSaida] = useState(false);
   const tentativas = useRef<Tentativa[]>([]);
   const finalizadas = useRef(new Set<string>()); // questões já terminadas (clique repetido não conta de novo)
-  const sessaoRef = useRef<Promise<string> | null>(null);
-  const filaRef = useRef<Promise<void>>(Promise.resolve());
-  const falhou = useRef(false);
   const inicioQ = useRef(Date.now());
+  const resultadoRef = useRef<HTMLDivElement>(null);
+  const sessao = useSessaoEstudo(() => ({ tipo: 'revisao', exame_id: dados.prefs.exame_id, recorte_id: null, assunto: null, unidade: null, questoes: null }), 'esta revisão');
+
+  // Terminou a questão: o resultado aparece à vista (ele fica embaixo das dicas)
+  useEffect(() => {
+    if (resultado) resultadoRef.current?.scrollIntoView({ block: 'nearest', behavior: reduzirMovimento() ? 'auto' : 'smooth' });
+  }, [resultado]);
 
   if (!questoes.length) {
     return (
-      <div className="app"><div className="screen" style={{ justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-        <Mascote largura={140} /><h1 className="title">Nada para revisar agora</h1>
-        <p className="muted">Quando você errar uma questão numa lição, ela aparece aqui.</p>
-        <Link to="/inicio" className="btn">Voltar ao início</Link>
-      </div></div>
+      <div className="app"><main className="screen tela-centro">
+        <Mascote largura={140} />
+        {filtrada ? <>
+          <h1 className="title">Nada para revisar aqui</h1>
+          <p className="muted">Estas questões já foram revisadas ou saíram da lista. Veja o que ainda tem na sua revisão.</p>
+          <Link to="/revisar" className="btn" replace>Ver a revisão</Link>
+          <Link to="/inicio" className="linkbtn">Voltar ao início</Link>
+        </> : guardados ? <>
+          <h1 className="title">Nada vence hoje</h1>
+          <p className="muted">Você tem {plural(guardados, 'erro guardado', 'erros guardados')}. Se quiser, adiante a revisão agora: é treino, sem XP.</p>
+          <Link to="/refazer?todas=1" className="btn" replace>Adiantar revisão</Link>
+          <Link to="/inicio" className="linkbtn">Voltar ao início</Link>
+        </> : <>
+          <h1 className="title">Nada para revisar agora</h1>
+          <p className="muted">Quando você errar uma questão numa lição, ela aparece aqui.</p>
+          <Link to="/inicio" className="btn">Voltar ao início</Link>
+        </>}
+      </main></div>
     );
   }
 
   const q = questoes[Math.min(i, questoes.length - 1)];
-  const item = dados.revisao[q.id];
+  const { item, vencida } = antes[q.id];
+  const confirmar = vencida && item?.status === 'dominada'; // já recuperada antes; voltou para confirmar
   const terminou = resultado !== null;
-  const xpAgora = resultado === 'falhou' ? 0 : XP_REVISAO[Math.min(2, dicas)];
+  const xpAgora = xpDaRevisao(true, dicas, erradas.length > 0, vencida); // o que vale acertar agora
+  const xpFeito = feitas[feitas.length - 1]?.xp ?? 0;
   const resolucaoLiberada = erradas.length > 0 || dicas >= 2;
 
   const estados: Record<string, EstadoAlt> = {};
@@ -70,40 +121,29 @@ export default function Refazer() {
     else if (terminou) estados[a.letra] = a.letra === q.gabarito ? 'certa' : 'apagada';
     else estados[a.letra] = sel === a.letra ? 'sel' : 'neutra';
   }
-  const rotuloAntes = item?.ultima_letra && !erradas.includes(item.ultima_letra) && !terminou ? { [item.ultima_letra]: 'sua resposta antes' } : undefined;
-
-  function sessao() {
-    sessaoRef.current ??= repo.iniciarSessao({ tipo: 'revisao', exame_id: dados.prefs.exame_id, recorte_id: null, assunto: null, unidade: null, questoes: null })
-      .catch((e) => { sessaoRef.current = null; throw e; });
-    return sessaoRef.current;
-  }
-
-  // Chamadas ao servidor em ordem (a dica chega antes da resposta). Se uma resposta falhar, é reenviada no fim.
-  function enfileirar(f: (sessao: string) => Promise<void>) {
-    filaRef.current = filaRef.current.then(async () => { await f(await sessao()); }).catch(() => { falhou.current = true; });
-  }
+  // Um rótulo só: a resposta da lição até o aluno tentar; depois, a tentativa dele (riscada); terminou, nenhum.
+  const ultimaTentativa = erradas[erradas.length - 1];
+  const rotulo = terminou ? undefined
+    : ultimaTentativa ? { [ultimaTentativa]: 'sua tentativa' }
+    : item?.ultima_letra ? { [item.ultima_letra]: 'sua resposta antes' } : undefined;
 
   function registrar(correta: boolean, letra: string | null, viu: boolean) {
     const t: Tentativa = { questao_id: q.id, letra, correta, dicas_usadas: dicas, viu_resolucao: viu, tempo_ms: Date.now() - inicioQ.current, origem: 'revisao' };
     tentativas.current.push(t);
-    enfileirar((s) => repo.responder(s, t));
+    sessao.responder(t);
   }
 
   function abrirDica(n: number) {
     setDicas(n);
-    const id = q.id;
-    enfileirar((s) => repo.abrirDica(s, id, n));
+    sessao.abrirDica(q.id, n);
   }
 
   function finalizarQuestao(acertou: boolean) {
     if (finalizadas.current.has(q.id)) return;
     finalizadas.current.add(q.id);
     setResultado(acertou ? 'acertou' : 'falhou');
-    setRes((r) => [...r, acertou ? XP_REVISAO[Math.min(2, dicas)] : 0]);
-    atualizar((d) => {
-      const atual = d.revisao[q.id] ?? agendarErro(undefined, q.id, null);
-      return { ...d, revisao: { ...d.revisao, [q.id]: reagendar(atual, acertou, dicas) } };
-    }, { revisao: [q.id] });
+    setFeitas((f) => [...f, { acertou, xp: xpDaRevisao(acertou, dicas, erradas.length > 0, vencida), vencida }]);
+    atualizar((d) => registrarRevisao(d, q.id, acertou, dicas, erradas.length > 0)); // na tela já; o servidor reagenda ao concluir
   }
 
   function verificar() {
@@ -125,41 +165,15 @@ export default function Refazer() {
     finalizarQuestao(false);
   }
 
-  /** Fecha a revisão com as questões terminadas até aqui (no fim ou ao sair no meio). */
-  async function concluir(xps: number[]) {
+  /** Fecha a revisão com as questões tentadas até aqui (no fim ou ao sair no meio). */
+  async function concluir() {
     if (concluindo) return;
     setConcluindo(true);
-    const total = xps.length;
-    const xp = xps.reduce((s, x) => s + x, 0);
-    const recuperadas = xps.filter((x) => x > 0).length;
-    const areas = areasDoExame(conteudo, dados.prefs.exame_id);
-    let ganhas: string[] = [];
-    await atualizar((d) => {
-      let n = somarXP(d, xp);
-      const perfil = recuperadas > 0 ? ajustarVidas(n.perfil, +1) : n.perfil; // recuperar ao menos uma devolve 1 vida
-      n = { ...n, perfil: { ...perfil, revisoes_concluidas: n.perfil.revisoes_concluidas + 1, questoes_feitas: n.perfil.questoes_feitas + total, acertos_total: n.perfil.acertos_total + recuperadas } };
-      ganhas = novasConquistas(n, areas);
-      const agora = new Date().toISOString();
-      return { ...n, conquistas: { ...n.conquistas, ...Object.fromEntries(ganhas.map((g) => [g, agora])) } };
-    }, { perfil: true, xpDia: [hoje()] });
-    if (ganhas.length) await atualizar((d) => d, { conquistas: ganhas }); // no modo demonstração grava as conquistas
-
-    let resumo: ResumoSessao | null = null;
-    try {
-      await filaRef.current;
-      // Reenvio: o servidor ignora as repetidas e recusa a que veio depois da resolução; só a falha de rede interrompe.
-      if (falhou.current) {
-        for (const t of tentativas.current.filter((x) => x.letra)) {
-          await repo.responder(await sessao(), t).catch((e) => { if (falhaDeRede(e)) throw e; });
-        }
-      }
-      resumo = await repo.concluirSessao(await sessao());
-    } catch (e) {
-      avisar(`Não deu para salvar esta revisão. ${(e as Error).message}`);
-    }
-    sincronizar();
+    // Saiu no meio de uma questão já tentada: o servidor a conta como não recuperada
+    const meio = !finalizadas.current.has(q.id) && tentativas.current.some((t) => t.questao_id === q.id) ? [{ acertou: false, xp: 0, vencida }] : [];
+    const resumo = await sessao.concluir(tentativas.current);
     tocar('fim', dados.prefs.sons);
-    setFim({ xp: resumo?.xp ?? xp, recuperadas: resumo?.acertos ?? recuperadas, total: resumo?.total ?? total });
+    setFim({ xp: resumo?.xp ?? 0, vida: !!resumo?.vidaGanha, feitas: [...feitas, ...meio] });
   }
 
   function proxima() {
@@ -167,79 +181,95 @@ export default function Refazer() {
       setI(i + 1); setSel(null); setErradas([]); setDicas(0); setResultado(null); inicioQ.current = Date.now();
       return;
     }
-    concluir(res);
+    concluir();
   }
 
   function sair() {
-    if (res.length) setConfirmarSaida(true);
+    if (feitas.length) setConfirmarSaida(true);
     else nav(-1);
   }
 
+  // Terminada a questão, as dicas e a resolução ficam todas abertas para leitura (sem mudar o XP).
   const passos = [0, 1, 2].map((k) => {
     const resol = k === 2;
-    const aberto = resol ? (terminou || dicas >= 3) && resultado !== null : dicas > k;
-    const podeAbrir = !terminou && (resol ? resolucaoLiberada && !aberto : dicas === k);
+    if (terminou) return { k, resol, aberto: true, podeAbrir: false, bloqueado: false };
+    const aberto = !resol && dicas > k;
+    const podeAbrir = resol ? resolucaoLiberada : dicas === k;
     return { k, resol, aberto, podeAbrir, bloqueado: !aberto && !podeAbrir };
   });
 
   if (fim) {
-    const { xp, recuperadas, total } = fim;
-    const faltam = total - recuperadas;
-    const texto = recuperadas === total
-      ? (total === 1 ? 'Você recuperou a questão!' : `Você recuperou as ${total} questões!`)
-      : recuperadas === 0
-        ? (total === 1 ? 'Essa ainda não foi. Ela volta amanhã.' : 'Essas ainda não foram. Elas voltam amanhã.')
-        : `Você recuperou ${recuperadas} de ${plural(total, 'questão', 'questões')}. ${faltam === 1 ? 'A outra volta amanhã.' : 'As outras voltam amanhã.'}`;
+    const treinoSo = fim.feitas.every((f) => f.acertou && !f.vencida);
+    const comemorar = fim.feitas.some((f) => f.acertou);
     return (
-      <div className="app" style={{ background: 'var(--bg-licao)' }}>
-        <div className="screen" style={{ alignItems: 'center', textAlign: 'center', paddingTop: 40 }}>
-          <Mascote largura={160} humor={recuperadas ? 'comemorando' : 'triste'} />
-          <h1 className="title" style={{ fontSize: 30 }}>Revisão feita!</h1>
-          <p className="muted" style={{ fontSize: 15 }}>{texto}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: recuperadas ? '1fr 1fr' : '1fr', gap: 8, width: '100%' }}>
-            <div className="card soft-lav"><div className="big">+{xp} XP</div><span className="small">na revisão</span></div>
-            {recuperadas > 0 && <div className="card" style={{ background: 'var(--coral-soft)', borderColor: 'transparent', color: 'var(--coral-text)' }}><div className="big">+1 vida</div><span className="small">por recuperar</span></div>}
+      <div className="app app-licao">
+        <main className="screen tela-fim">
+          <Mascote largura={160} humor={comemorar ? 'comemorando' : 'triste'} />
+          <h1 className="title fs-30">{treinoSo ? 'Treino feito!' : 'Revisão feita!'}</h1>
+          <p className="muted fs-15">{textoDoFim(fim.feitas)}</p>
+          <div className={`${fim.vida ? 'grade-2' : 'grade-1'} largura-total`}>
+            <div className="card soft-lav"><div className="big">+{fim.xp} XP</div><span className="small">na revisão</span></div>
+            {fim.vida && <div className="card soft-coral"><div className="big">+1 vida</div><span className="small">a vida do dia</span></div>}
           </div>
           <div className="spacer" />
           <Link to="/revisar" className="btn" replace>Continuar</Link>
-        </div>
+        </main>
       </div>
     );
   }
 
-  return (
-    <div className="app" style={{ background: 'var(--bg-licao)' }}>
-      <header className="row" style={{ padding: '16px 18px 8px', gap: 12 }}>
-        <button onClick={sair} aria-label="Sair da revisão" className="linkbtn" style={{ color: 'var(--icon)', padding: 8 }}><IcX /></button>
-        <div className="spacer" style={{ display: 'grid', gridTemplateColumns: `repeat(${questoes.length}, 1fr)`, gap: 4 }} role="progressbar" aria-label="Progresso da revisão" aria-valuemin={0} aria-valuemax={questoes.length} aria-valuenow={res.length}>
-          {questoes.map((_, k) => <span key={k} style={{ height: 12, borderRadius: 99, background: k < i ? (res[k] ? 'var(--ok)' : 'var(--coral)') : k === i ? (terminou ? (resultado === 'acertou' ? 'var(--ok)' : 'var(--coral)') : '#A9DCD2') : 'var(--line)' }} />)}
-        </div>
-        <span className="pill" style={{ background: 'var(--lav-soft)', color: 'var(--lav-dark)', height: 32, gap: 5 }}><IcRevisar size={15} />Revisão</span>
-      </header>
-      <div className="screen licao" tabIndex={0} role="region" aria-label="Questão" style={{ paddingBottom: 130 }}>
-        <div className="row" style={{ background: 'var(--amber-soft)', color: 'var(--amber-text)', borderRadius: 14, padding: '10px 12px', gap: 10 }}>
-          <IcRevisar size={20} color="#B8781A" />
-          <span className="small">Você errou esta questão antes. A resposta só aparece depois que você tentar.</span>
-        </div>
-        <QuestaoView key={q.id} q={q} recorte={conteudo.recortes.find((r) => r.id === q.recorte_id)} nomeExame={conteudo.exames.find((e) => e.id === q.exame_id)?.nome ?? ''}
-          textoBase={q.texto_base_id ? conteudo.textos_base[q.texto_base_id] : null} estados={estados} escolher={(l) => !terminou && setSel(l)} bloqueado={terminou} rotuloExtra={rotuloAntes} />
+  const aviso = !vencida && vidaTreino ? 'Treino: esta questão ainda não venceu e não vale XP (ela volta amanhã, valendo). Mas acertando pelo menos 1, você recupera 1 vida.'
+    : !vencida ? 'Treino: esta questão ainda não venceu. Acertar agora não vale XP, e ela volta amanhã, valendo.'
+    : confirmar ? 'Você já recuperou esta questão: ela voltou para confirmar. A resposta só aparece depois que você tentar.'
+    : 'Você errou esta questão antes. A resposta só aparece depois que você tentar.';
+  const titulo = resultado === 'falhou' ? 'Essa volta amanhã'
+    : !vencida ? 'Acertou! Era treino'
+    : `${confirmar ? 'Confirmada' : 'Recuperada'}! +${xpFeito} XP`;
+  const detalhe = resultado === 'falhou' ? 'Leia a resolução e siga em frente.'
+    : !vencida ? 'Ela volta amanhã, valendo XP.'
+    : dicas ? 'Recuperada com dica: volta em 3 dias para confirmar.'
+    : erradas.length ? 'Acertou na 2ª tentativa: volta em 3 dias para confirmar.'
+    : confirmar ? `Volta em ${PASSOS_DOMINADA[Math.min(item?.repeticoes ?? 0, 2)]} dias para confirmar de novo.`
+    : 'Acertou de primeira e sem dica: ela sai da sua lista de erros.';
 
-        <section aria-label="Dicas" style={{ background: 'var(--card)', border: '2px solid #C9C2F7', borderRadius: 22, overflow: 'hidden' }}>
-          <div className="row" style={{ padding: '12px 14px', background: 'var(--lav-soft)', gap: 10 }}>
-            <span style={{ width: 34, height: 34, borderRadius: 11, background: 'var(--lav)', display: 'grid', placeItems: 'center' }}><IcLampada color="#fff" size={18} /></span>
-            <span className="col spacer" style={{ gap: 0 }}><b className="h2" style={{ fontSize: 17, color: 'var(--lav-text)' }}>Precisa de uma ajuda?</b><span className="small" style={{ color: 'var(--lav-dark)' }}>Cada dica reduz o XP desta questão</span></span>
-            <span className="big" style={{ fontSize: 16, color: 'var(--lav-dark)' }}>+{xpAgora} XP</span>
+  return (
+    <div className="app app-licao">
+      <header className="row topo-licao">
+        <button onClick={sair} aria-label="Sair da revisão" className="linkbtn botao-sair"><IcX /></button>
+        <div className="spacer segmentos" style={{ gridTemplateColumns: `repeat(${questoes.length}, 1fr)` }} role="progressbar" aria-label="Progresso da revisão" aria-valuemin={0} aria-valuemax={questoes.length} aria-valuenow={feitas.length}>
+          {questoes.map((_, k) => <span key={k} className="segmento" style={{ background: k < i ? (feitas[k]?.acertou ? 'var(--ok)' : 'var(--coral)') : k === i ? (terminou ? (resultado === 'acertou' ? 'var(--ok)' : 'var(--coral)') : '#A9DCD2') : 'var(--line)' }} />)}
+        </div>
+        <span className="pill pilula-lav pilula-revisao"><IcRevisar size={15} />{vencida ? 'Revisão' : 'Treino'}</span>
+      </header>
+      <main className="screen licao pb-130" tabIndex={0} aria-label="Questão">
+        <h1 className="sr-only">{vencida ? 'Revisão' : 'Treino'}, questão {i + 1} de {questoes.length}</h1>
+        <div className="row aviso-ambar">
+          <IcRevisar size={20} color="var(--amber-ink)" />
+          <span className="small">{aviso}</span>
+        </div>
+        <QuestaoView key={q.id} q={q} recorte={catalogo(conteudo).recorte(q.recorte_id)} nomeExame={catalogo(conteudo).exame(q.exame_id)?.nome ?? ''}
+          textoBase={q.texto_base_id ? conteudo.textos_base[q.texto_base_id] : null} estados={estados} escolher={(l) => !terminou && setSel(l)} bloqueado={terminou} rotuloExtra={rotulo} />
+
+        <section aria-label="Dicas" className="dicas">
+          <div className="row dicas-topo">
+            <span className="dicas-icone"><IcLampada color="#fff" size={18} /></span>
+            {terminou
+              ? <b className="h2 spacer fs-17 dicas-titulo">Dicas desta questão</b>
+              : <>
+                <span className="col spacer gap-0"><b className="h2 fs-17 dicas-titulo">Precisa de uma ajuda?</b><span className="small tinta-lav">{vencida ? 'Cada dica reduz o XP desta questão' : 'No treino, as dicas não tiram nada'}</span></span>
+                {vencida && <span className="big fs-16 tinta-lav">+{xpAgora} XP</span>}
+              </>}
           </div>
           {passos.map((p) => (
-            <div key={p.k} style={{ padding: '10px 14px', borderTop: p.k ? '1.5px solid var(--lav-soft)' : 0 }} className="col">
+            <div key={p.k} className="col dica">
               <div className="row">
-                <span aria-hidden="true" style={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 13, background: p.aberto ? (p.resol ? 'var(--ok)' : 'var(--lav)') : 'var(--lav-soft)', color: p.aberto ? '#fff' : '#7C73C9' }}>{p.resol ? '✓' : p.k + 1}</span>
-                <span className="spacer" style={{ fontWeight: 600, fontSize: 14, color: p.bloqueado ? 'var(--text3)' : 'var(--text)' }}>{p.resol ? 'Resolução' : `Dica ${p.k + 1}`}</span>
-                {p.podeAbrir && <button className="btn lav sm" style={{ height: 34 }} onClick={() => (p.resol ? verResolucao() : abrirDica(p.k + 1))}>{p.resol ? 'Ver resolução' : 'Abrir'}</button>}
-                {p.bloqueado && <span className="row muted" style={{ gap: 4, fontSize: 12 }}><IcLock size={14} />{p.resol ? 'depois de tentar' : 'abra a anterior'}</span>}
+                <span aria-hidden="true" className={`dica-num${p.aberto ? ' aberta' : ''}${p.resol ? ' resol' : ''}`}>{p.resol ? '✓' : p.k + 1}</span>
+                <span className={`spacer dica-nome${p.bloqueado ? ' bloqueada' : ''}`}>{p.resol ? 'Resolução' : `Dica ${p.k + 1}`}</span>
+                {p.podeAbrir && <button className="btn lav sm baixo" onClick={() => (p.resol ? verResolucao() : abrirDica(p.k + 1))}>{p.resol ? 'Ver resolução' : 'Abrir'}</button>}
+                {p.bloqueado && <span className="row muted gap-4 fs-12"><IcLock size={14} />{p.resol ? 'depois de tentar' : 'abra a anterior'}</span>}
               </div>
               {p.aberto && (
-                <div className="a-rise" style={{ marginLeft: 36, borderRadius: 12, padding: '10px 12px', background: p.resol ? 'var(--ok-soft)' : 'var(--lav-soft)', color: p.resol ? 'var(--ok-text)' : 'var(--lav-text)' }}>
+                <div className={`a-rise dica-texto${p.resol ? ' resol' : ''}`}>
                   <Texto md={p.resol ? q.explicacao : p.k === 0 ? q.dica1 : q.dica2} className="texto-questao small" />
                 </div>
               )}
@@ -248,25 +278,29 @@ export default function Refazer() {
         </section>
 
         {terminou && (
-          <div className="row a-rise" role="status" style={{ gap: 12, borderRadius: 18, padding: '12px 14px', background: resultado === 'acertou' ? 'var(--ok-soft)' : 'var(--coral-soft)', color: resultado === 'acertou' ? 'var(--ok-text)' : 'var(--coral-text)' }}>
+          <div ref={resultadoRef} className={`row a-rise resultado-questao ${resultado === 'acertou' ? 'ok' : 'erro'}`} role="status">
             <Mascote largura={52} humor={resultado === 'acertou' ? 'comemorando' : 'triste'} flutuar={false} />
-            <span className="col" style={{ gap: 2 }}>
-              <b className="h2" style={{ fontSize: 18 }}>{resultado === 'acertou' ? `Recuperada! +${XP_REVISAO[Math.min(2, dicas)]} XP` : 'Essa volta amanhã'}</b>
-              <span className="small">{resultado === 'acertou' ? (dicas ? 'Volta em 3 dias para confirmar.' : 'Ela sai da sua lista de erros.') : 'Leia a resolução e siga em frente.'}</span>
+            <span className="col gap-2">
+              <b className="h2 fs-18">{titulo}</b>
+              <span className="small">{detalhe}</span>
             </span>
           </div>
         )}
-      </div>
+      </main>
       <div className="footer-cta">
+        {/* A região de aviso fica sempre montada: o leitor de tela só anuncia mudanças numa região que já existia */}
+        <p className={!terminou && erradas.length === 1 ? 'small aviso-tentativa' : 'sr-only'} role="status">
+          {!terminou && erradas.length === 1 ? `Resta 1 tentativa.${dicas < 2 ? ' Se quiser, abra uma dica.' : ''}` : ''}
+        </p>
         {terminou
           ? <button className="btn" disabled={concluindo} onClick={proxima}>{concluindo ? 'Salvando…' : i === questoes.length - 1 ? 'Concluir revisão' : 'Próxima questão'}</button>
           : <button className="btn" disabled={!sel} onClick={verificar}>{erradas.length ? 'Tentar de novo' : 'Verificar'}</button>}
       </div>
       <Folha aberta={confirmarSaida} fechar={() => setConfirmarSaida(false)} titulo="Sair da revisão">
-        <span className="title" style={{ fontSize: 24 }}>Sair da revisão?</span>
-        <p className="small">Você terminou {plural(res.length, 'questão', 'questões')} de {questoes.length}. Se sair agora, elas contam e as outras ficam para depois.</p>
+        <span className="title fs-24">Sair da revisão?</span>
+        <p className="small">Você terminou {plural(feitas.length, 'questão', 'questões')} de {questoes.length}. Se sair agora, elas contam e as outras ficam para depois.</p>
         <button className="btn" onClick={() => setConfirmarSaida(false)}>Continuar a revisão</button>
-        <button className="linkbtn" disabled={concluindo} onClick={() => { setConfirmarSaida(false); concluir(res); }}>Sair e salvar o que fiz</button>
+        <button className="linkbtn" disabled={concluindo} onClick={() => { setConfirmarSaida(false); concluir(); }}>Sair e salvar o que fiz</button>
       </Folha>
     </div>
   );

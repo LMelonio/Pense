@@ -1,15 +1,7 @@
 // Camada de dados: o app fala só com esta interface.
-// Com VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY definidos, usa o Supabase; sem eles, o modo demonstração (navegador).
-import type { Conteudo, DadosAluno, Preferencias, Sessao, Tentativa } from './types';
-
-/** Início de uma lição, desafio ou revisão. Lição e desafio levam as questões montadas (o servidor confere a lista). */
-export type NovaSessao = Pick<Sessao, 'tipo' | 'exame_id' | 'recorte_id' | 'assunto'> & { unidade: number | null; questoes: string[] | null };
-
-/** Resultado calculado pelo servidor ao concluir a sessão. */
-export interface ResumoSessao {
-  acertos: number; total: number; xp: number; perfeita: boolean; aprovado: boolean | null;
-  conquistas: string[]; coroaAntes: number; coroaDepois: number;
-}
+// Com VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY definidos, usa o Supabase; sem eles, o modo demonstração (navegador),
+// que faz o papel do servidor com as mesmas regras. Os dois passam pela mesma suíte de contrato (domain/paridade.test.ts).
+import type { Conteudo, DadosAluno, NovaSessao, Preferencias, ResumoSessao, Tentativa } from './types';
 
 export type Provedor = 'anonimo' | 'email' | 'google';
 export interface Usuario { id: string; email: string | null; anonimo: boolean; nome?: string | null; provedor?: Provedor }
@@ -17,19 +9,12 @@ export interface Usuario { id: string; email: string | null; anonimo: boolean; n
 /** Formas de entrar ligadas no servidor. */
 export interface Provedores { google: boolean; email: boolean; anonimo: boolean }
 
-// O que mudou em DadosAluno. No Supabase, perfil (XP, vidas, sequência), temas, revisão, XP do dia, conquistas e
-// unidades são calculados pelo servidor nas sessões; daqui só vão o nome, as preferências e o interesse no Pro.
+// O que o aluno grava direto. Perfil (XP, vidas, sequência), temas, revisão, XP do dia, conquistas e unidades vêm
+// das sessões (iniciarSessao, responder, concluirSessao), calculados pelo servidor.
 export interface Mudancas {
   nome?: boolean;
-  perfil?: boolean;
   /** Só os campos alterados: duas abas ou aparelhos mudando campos diferentes não apagam a mudança um do outro. */
   prefs?: (keyof Preferencias)[];
-  temas?: string[];
-  revisao?: string[];
-  xpDia?: string[];
-  conquistas?: string[];
-  unidades?: string[];
-  vistas?: string[];
   interessePro?: boolean;
 }
 
@@ -39,28 +24,30 @@ export interface Repo {
   usuarioAtual(): Promise<Usuario | null>;
   aoMudarUsuario(cb: (u: Usuario | null) => void): () => void;
   provedores(): Promise<Provedores>;
-  entrarEmail(email: string, senha: string): Promise<void>;
-  cadastrarEmail(email: string, senha: string, nome: string): Promise<{ confirmarEmail: boolean }>;
+  // captcha: token do Cloudflare Turnstile, quando o CAPTCHA está ligado no Supabase (Attack Protection)
+  entrarEmail(email: string, senha: string, captcha?: string): Promise<void>;
+  cadastrarEmail(email: string, senha: string, nome: string, captcha?: string): Promise<{ confirmarEmail: boolean }>;
   entrarGoogle(): Promise<void>;
-  entrarAnonimo(): Promise<void>;
+  entrarAnonimo(captcha?: string): Promise<void>;
   /** Visitante sem login passa a ter e-mail e senha, mantendo o progresso. */
   vincularEmail(email: string, senha: string): Promise<{ confirmarEmail: boolean }>;
   /** Visitante sem login liga uma conta Google, mantendo o progresso. */
   vincularGoogle(): Promise<void>;
-  recuperarSenha(email: string): Promise<void>;
+  recuperarSenha(email: string, captcha?: string): Promise<void>;
   definirSenha(senha: string): Promise<void>;
   sair(): Promise<void>;
   carregarDados(u: Usuario): Promise<DadosAluno>;
+  /** Grava o nome, as preferências e o interesse no Pro. */
   salvar(d: DadosAluno, m: Mudancas): Promise<void>;
-  /** Abre a sessão (no Supabase, no servidor). Devolve o id usado em responder e concluirSessao. */
+  /** Abre a sessão no servidor. Devolve o id usado em responder, abrirDica e concluirSessao. */
   iniciarSessao(s: NovaSessao): Promise<string>;
-  /** Registra uma resposta. No Supabase o servidor confere o gabarito, gasta a vida e agenda a revisão. */
+  /** Registra uma resposta: o servidor confere o gabarito, gasta a vida (lição) e agenda a revisão (erro). */
   responder(sessao: string, t: Tentativa): Promise<void>;
-  /** Abriu a dica 1 ou 2 na revisão (no Supabase, o XP da questão usa este registro). */
+  /** Abriu a dica 1 ou 2 na revisão (o XP da questão usa este registro). */
   abrirDica(sessao: string, questao_id: string, dica: number): Promise<void>;
-  /** Fecha a sessão. No Supabase devolve o resultado calculado no servidor; no modo demonstração, null (vale o cálculo local). */
-  concluirSessao(sessao: string): Promise<ResumoSessao | null>;
-  /** +1 vida por anúncio assistido (no Supabase, com limite diário no servidor). */
+  /** Fecha a sessão e devolve o resultado calculado pelo servidor. Chamar de novo devolve o mesmo resumo. */
+  concluirSessao(sessao: string): Promise<ResumoSessao>;
+  /** +1 vida por anúncio assistido (até 5 em 24 horas). */
   ganharVidaAnuncio(): Promise<void>;
   excluirConta(): Promise<void>;
 }

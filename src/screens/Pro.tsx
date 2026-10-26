@@ -7,17 +7,17 @@ export default function Pro() {
   const nav = useNavigate();
   return (
     <div className="app">
-      <header className="row" style={{ padding: '14px 16px 10px', borderBottom: '1.5px solid var(--line)', gap: 8 }}>
-        <button onClick={() => nav(-1)} aria-label="Voltar" className="linkbtn" style={{ color: 'var(--text)', display: 'grid', placeItems: 'center', width: 42, height: 42, padding: 0 }}><IcVoltar /></button>
-        <h1 className="title" style={{ fontSize: 22 }}>Pense Pro</h1>
+      <header className="row cabecalho-voltar">
+        <button onClick={() => nav(-1)} aria-label="Voltar" className="linkbtn botao-voltar"><IcVoltar /></button>
+        <h1 className="title fs-22">Pense Pro</h1>
       </header>
-      <div className="screen">
-        <div className="col" style={{ alignItems: 'center', textAlign: 'center' }}>
+      <main className="screen">
+        <div className="col alinha-centro centro">
           <Mascote largura={120} faisca />
-          <p className="small" style={{ color: 'var(--text2)', maxWidth: 300 }}>Estude sem esperar as vidas voltarem e sem anúncios.</p>
+          <p className="small texto2 largura-300">Estude sem esperar as vidas voltarem e sem anúncios.</p>
         </div>
         <CartaoPro />
-      </div>
+      </main>
     </div>
   );
 }

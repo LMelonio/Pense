@@ -7,6 +7,7 @@ import type { Provedores } from '../data/repo';
 import { IcGoogle, Mascote } from '../components/Icones';
 import { useApp } from '../state/AppContext';
 import { BannerDemo, CampoSenha } from '../components/Base';
+import { Captcha, captchaLigado } from '../components/Captcha';
 
 type Modo = 'inicio' | 'entrar' | 'criar' | 'recuperar';
 
@@ -37,6 +38,10 @@ export default function Entrar() {
   const [enviado, setEnviado] = useState(false);
   const [ocupado, setOcupado] = useState<null | 'google' | 'anonimo' | 'form'>(null); // qual botão está esperando o servidor
   const [provs, setProvs] = useState<Provedores | null>(null);
+  // CAPTCHA (se ligado): cada token vale uma tentativa; depois de enviar, o widget recomeça e pede outro
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  const [rodadaCaptcha, setRodadaCaptcha] = useState(0);
+  const faltaCaptcha = captchaLigado && !captcha;
   const titulo = useRef<HTMLHeadingElement>(null);
   const botaoEmail = useRef<HTMLButtonElement>(null);
   const focarAoTrocar = useRef(false);
@@ -55,10 +60,14 @@ export default function Entrar() {
 
   async function rodar(qual: NonNullable<typeof ocupado>, f: () => Promise<unknown>) {
     setErro(null); setOcupado(qual);
-    try { await comLimite(f()); } catch (e) { setErro((e as Error).message); } finally { setOcupado(null); }
+    try { await comLimite(f()); } catch (e) { setErro((e as Error).message); } finally {
+      setOcupado(null);
+      if (captchaLigado) { setCaptcha(null); setRodadaCaptcha((n) => n + 1); }
+    }
   }
 
-  function trocar(m: Modo) { focarAoTrocar.current = true; setModo(m); setErro(null); setEnviado(false); }
+  // Trocar de formulário recomeça o CAPTCHA: o widget já resolvido não manda outro token (e o botão ficaria desligado)
+  function trocar(m: Modo) { focarAoTrocar.current = true; setModo(m); setErro(null); setEnviado(false); setCaptcha(null); setRodadaCaptcha((n) => n + 1); }
 
   // Confere no servidor antes: com o provedor desligado, o Supabase mostraria uma página de erro crua.
   const google = () => rodar('google', async () => {
@@ -68,23 +77,24 @@ export default function Entrar() {
 
   const semLogin = () => rodar('anonimo', async () => {
     if (!(await repo.provedores()).anonimo) throw new Error('O acesso sem login está desligado no momento. Entre com Google ou e-mail.');
-    await repo.entrarAnonimo();
+    await repo.entrarAnonimo(captcha ?? undefined);
   });
 
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const Logo = modo === 'inicio' ? 'h1' : 'span'; // nos formulários, o título do formulário é o h1
 
   function enviar(e: FormEvent) {
     e.preventDefault();
     if (!emailOk) { setErro('Digite um e-mail válido.'); return; }
     if (modo === 'recuperar') {
-      rodar('form', async () => { await repo.recuperarSenha(email.trim()); setEnviado(true); });
+      rodar('form', async () => { await repo.recuperarSenha(email.trim(), captcha ?? undefined); setEnviado(true); });
       return;
     }
     if (senha.length < 6) { setErro('A senha precisa de pelo menos 6 caracteres.'); return; }
     rodar('form', async () => {
-      if (modo === 'entrar') await repo.entrarEmail(email.trim(), senha);
+      if (modo === 'entrar') await repo.entrarEmail(email.trim(), senha, captcha ?? undefined);
       else {
-        const r = await repo.cadastrarEmail(email.trim(), senha, nome.trim() || 'Estudante');
+        const r = await repo.cadastrarEmail(email.trim(), senha, nome.trim() || 'Estudante', captcha ?? undefined);
         if (r.confirmarEmail) avisar('Enviamos um link de confirmação para o seu e-mail.');
       }
     });
@@ -93,41 +103,43 @@ export default function Entrar() {
   return (
     <div className="app">
       <BannerDemo />
-      <div className="screen" style={{ justifyContent: 'space-between', paddingBottom: 26 }}>
-        <div className="col" style={{ alignItems: 'center', gap: 6, marginTop: modo === 'inicio' ? 24 : 8 }}>
+      <main className="screen entrada">
+        <div className={`col alinha-centro gap-6 ${modo === 'inicio' ? 'mt-24' : 'mt-8'}`}>
           <Mascote largura={modo === 'inicio' ? 170 : 110} faisca />
-          <span style={{ fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: modo === 'inicio' ? 52 : 36, lineHeight: 1 }}>Pense<span style={{ color: 'var(--lav)' }}>.</span></span>
-          <p style={{ textAlign: 'center', color: 'var(--text2)', fontSize: 17, maxWidth: 300 }}>Estude um pouco por dia para a sua prova: ENEM, vestibular, concurso ou seleção.</p>
+          <Logo className={`logo ${modo === 'inicio' ? 'logo-grande' : 'logo-media'}`}>Pense<span className="logo-ponto">.</span></Logo>
+          <p className="chamada">Estude um pouco por dia para a sua prova: ENEM, vestibular, concurso ou seleção.</p>
           {modo === 'inicio' && (
-            <div className="col" style={{ alignItems: 'center', marginTop: 12, gap: 8 }}>
+            <div className="col alinha-centro mt-12">
               {['Questões reais de provas', 'Revisão no momento certo', 'Dicas antes da resposta'].map((t) => (
-                <span key={t} className="pill" style={{ background: 'var(--card)', border: '1.5px solid var(--line)', height: 32, fontSize: 13 }}>✓ {t}</span>
+                <span key={t} className="pill pilula-vantagem">✓ {t}</span>
               ))}
             </div>
           )}
         </div>
 
         {modo === 'inicio' ? (
-          <div className="col" style={{ gap: 12 }}>
+          <div className="col gap-12">
             {provs?.google && <button className="btn google" disabled={!!ocupado} onClick={google}><IcGoogle />{ocupado === 'google' ? 'Abrindo o Google…' : 'Continuar com Google'}</button>}
             <button ref={botaoEmail} className="btn" disabled={!!ocupado} onClick={() => trocar('entrar')}>Entrar com e-mail</button>
             <div className="divisor">ou</div>
-            <button className="btn ghost" disabled={!!ocupado} onClick={semLogin}>{ocupado === 'anonimo' ? 'Entrando…' : 'Entrar sem login'}</button>
-            <p className="muted" style={{ textAlign: 'center' }}>Bom para testar. O progresso fica salvo e dá para criar uma conta depois sem perder nada.</p>
+            <Captcha key={rodadaCaptcha} aoMudar={setCaptcha} />
+            <button className="btn ghost" disabled={!!ocupado || faltaCaptcha} onClick={semLogin}>{ocupado === 'anonimo' ? 'Entrando…' : 'Entrar sem login'}</button>
+            <p className="muted centro">Bom para testar. O progresso fica salvo e dá para criar uma conta depois sem perder nada.</p>
             {erro && <p className="erro-msg" role="alert">{erro}</p>}
           </div>
         ) : (
-          <form className="col" style={{ gap: 12 }} onSubmit={enviar} noValidate>
-            <h1 ref={titulo} tabIndex={-1} className="title" style={{ fontSize: 24 }}>{TITULOS[modo]}</h1>
-            {modo === 'recuperar' && <p className="small" style={{ color: 'var(--text2)' }}>Digite o e-mail da sua conta. Enviamos um link para você criar uma senha nova.</p>}
+          <form className="col gap-12" onSubmit={enviar} noValidate>
+            <h1 ref={titulo} tabIndex={-1} className="title fs-24">{TITULOS[modo]}</h1>
+            {modo === 'recuperar' && <p className="small texto2">Digite o e-mail da sua conta. Enviamos um link para você criar uma senha nova.</p>}
             {modo === 'criar' && <input className="input" placeholder="Seu nome" aria-label="Seu nome" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="name" maxLength={40} />}
             <input className="input" type="email" placeholder="voce@email.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" aria-label="E-mail" />
             {modo !== 'recuperar' && <CampoSenha valor={senha} mudar={setSenha} rotulo={modo === 'criar' ? 'Senha (6 ou mais caracteres)' : 'Senha'} nova={modo === 'criar'} />}
             {erro && <p className="erro-msg" role="alert">{erro}</p>}
             {enviado && <p className="ok-msg" role="status">Se houver uma conta com este e-mail, o link chega em alguns minutos. Confira também o spam.</p>}
-            <button className="btn" type="submit" disabled={!!ocupado}>{ocupado === 'form' ? ESPERANDO[modo] : BOTOES[modo]}</button>
+            <Captcha key={rodadaCaptcha} aoMudar={setCaptcha} />
+            <button className="btn" type="submit" disabled={!!ocupado || faltaCaptcha}>{ocupado === 'form' ? ESPERANDO[modo] : BOTOES[modo]}</button>
             {modo === 'entrar' && <button type="button" className="linkbtn" onClick={() => trocar('recuperar')}>Esqueci minha senha</button>}
-            <div className="row" style={{ justifyContent: 'space-between' }}>
+            <div className="row entre">
               <button type="button" className="linkbtn" onClick={() => trocar('inicio')}>Voltar</button>
               {modo === 'entrar' && <button type="button" className="linkbtn" onClick={() => trocar('criar')}>Criar uma conta</button>}
               {modo === 'criar' && <button type="button" className="linkbtn" onClick={() => trocar('entrar')}>Já tenho conta</button>}
@@ -135,8 +147,8 @@ export default function Entrar() {
             </div>
           </form>
         )}
-        <p className="muted" style={{ textAlign: 'center', fontSize: 12 }}>Ao continuar, você concorda com os Termos de uso e a Política de privacidade.</p>
-      </div>
+        <p className="muted centro fs-12">Ao continuar, você concorda com os <a href="./termos.html" target="_blank" rel="noopener">Termos de uso</a> e a <a href="./privacidade.html" target="_blank" rel="noopener">Política de privacidade</a>.</p>
+      </main>
     </div>
   );
 }

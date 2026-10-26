@@ -1,18 +1,22 @@
 // Gera os arquivos SQL de carga das questões (supabase/seed/*.sql) a partir de public/data/conteudo.json.
 // Uso: npm run gerar-sql   → depois cole cada arquivo no SQL Editor do Supabase, em ordem.
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 
 const c = JSON.parse(readFileSync(new URL('../public/data/conteudo.json', import.meta.url), 'utf8'));
 const q = (v) => (v === null || v === undefined ? 'null' : typeof v === 'number' || typeof v === 'boolean' ? String(v) : `'${String(v).replace(/'/g, "''")}'`);
 const dir = new URL('../supabase/seed/', import.meta.url);
 mkdirSync(dir, { recursive: true });
+// Apaga os arquivos de questões antigos: a numeração segue a ordem das matérias e não pode deixar sobras.
+for (const f of readdirSync(dir)) if (/^\d+_questoes_.*\.sql$/.test(f)) unlinkSync(new URL(f, dir));
 
 const linhasTB = Object.entries(c.textos_base).map(([id, texto]) => `(${q(id)}, 'enem', ${q(texto)})`);
 writeFileSync(new URL('01_textos_base.sql', dir),
   `-- Textos-base compartilhados\ninsert into public.textos_base (id, exame_id, texto) values\n${linhasTB.join(',\n')}\non conflict (id) do update set texto = excluded.texto;\n`);
 
 const porRecorte = {};
-for (const x of c.questoes) (porRecorte[x.recorte_id] ??= []).push(x);
+// Um arquivo por matéria, na ordem das matérias (assim a numeração não muda quando entram questões de outros anos).
+const ordem = Object.fromEntries(c.recortes.map((r) => [r.id, r.ordem]));
+for (const x of [...c.questoes].sort((a, b) => (ordem[a.recorte_id] ?? 99) - (ordem[b.recorte_id] ?? 99))) (porRecorte[x.recorte_id] ??= []).push(x);
 let n = 2;
 for (const [rec, qs] of Object.entries(porRecorte)) {
   const cols = 'id, exame_id, recorte_id, banca, orgao, cargo, nivel, ano, numero, formato, disciplina, assunto, topico, lingua, texto_base_id, texto_apoio, comando, gabarito, dica1, dica2, explicacao, dificuldade';

@@ -1,29 +1,46 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+// Estado do app em quatro contextos pequenos, para cada parte da tela só re-renderizar com o que usa:
+//   Conta (usuário, carregando, erro), Conteúdo (questões, carregado uma vez), Progresso (dados do aluno, atualizar,
+//   sincronizar) e Aviso (o toast). useApp() e useDados() juntam os quatro, para as telas.
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { Context, ReactNode } from 'react';
 import { repo } from '../lib/config';
 import { erroDoRetorno, limparRetornoDaUrl } from '../data/repo';
 import type { Mudancas, Usuario } from '../data/repo';
 import type { Conteudo, DadosAluno } from '../data/types';
 
-interface Ctx {
-  conteudo: Conteudo | null;
+interface Conta {
   usuario: Usuario | null;
-  dados: DadosAluno | null;
   carregando: boolean; // conferindo a sessão e, se houver aluno, os dados dele
   erro: string | null; // falha ao carregar (a tela mostra "Tentar de novo")
-  atualizar: (fn: (d: DadosAluno) => DadosAluno, m: Mudancas) => Promise<DadosAluno | null>;
-  /** Relê os dados do aluno no servidor (depois de uma sessão ou de uma gravação que falhou). */
-  sincronizar: () => Promise<void>;
-  avisar: (msg: string) => void;
   recarregar: () => Promise<void>;
 }
+interface Progresso {
+  dados: DadosAluno | null;
+  /** Mostra a mudança na hora. Com `m`, grava o nome, as preferências ou o interesse no Pro; o resto vem das sessões. */
+  atualizar: (fn: (d: DadosAluno) => DadosAluno, m?: Mudancas) => Promise<DadosAluno | null>;
+  /** Relê os dados do aluno no servidor (depois de uma sessão ou de uma gravação que falhou). */
+  sincronizar: () => Promise<void>;
+}
+type Avisar = (msg: string) => void;
 
-const AppCtx = createContext<Ctx | null>(null);
+const ContaCtx = createContext<Conta | null>(null);
+const ConteudoCtx = createContext<{ conteudo: Conteudo | null } | null>(null);
+const ProgressoCtx = createContext<Progresso | null>(null);
+const AvisoCtx = createContext<Avisar | null>(null);
 
+function usar<T>(ctx: Context<T | null>, nome: string): T {
+  const v = useContext(ctx);
+  if (v === null) throw new Error(`${nome} fora do AppProvider`);
+  return v;
+}
+export const useConta = () => usar(ContaCtx, 'useConta');
+export const useConteudo = () => usar(ConteudoCtx, 'useConteudo').conteudo;
+export const useProgresso = () => usar(ProgressoCtx, 'useProgresso');
+export const useAviso = () => usar(AvisoCtx, 'useAviso');
+
+/** Tudo junto (conta, conteúdo, progresso e aviso). */
 export function useApp() {
-  const c = useContext(AppCtx);
-  if (!c) throw new Error('useApp fora do AppProvider');
-  return c;
+  return { ...useConta(), ...useProgresso(), conteudo: useConteudo(), avisar: useAviso() };
 }
 
 /** Dados garantidos (usar só em telas protegidas). */
@@ -37,28 +54,39 @@ function aplicarAparencia(d: DadosAluno | null) {
   const tema = d?.prefs.tema ?? 'claro';
   const escuro = tema === 'escuro' || (tema === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   root.dataset.theme = escuro ? 'dark' : 'light';
+  try { localStorage.setItem('pense-tema', root.dataset.theme); } catch { /* termos e privacidade seguem o sistema */ } // lido por public/tema.js
   root.dataset.size = d?.prefs.tamanho_texto ?? 'padrao';
   root.dataset.motion = d?.prefs.reduzir_animacoes ? 'reduce' : 'full';
 }
 
-export function AppProvider({ children }: { children: ReactNode }) {
-  const [conteudo, setConteudo] = useState<Conteudo | null>(null);
-  const [usuario, setUsuario] = useState<Usuario | null>(null);
-  const [dados, setDados] = useState<DadosAluno | null>(null);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
+/** Toast: o estado fica aqui dentro, então um aviso não re-renderiza as telas. */
+function AvisoProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<string | null>(null);
-  const dadosRef = useRef<DadosAluno | null>(null);
-  const conteudoRef = useRef<Conteudo | null>(null);
-  const usuarioRef = useRef<Usuario | null>(null);
-  const idCarregado = useRef<string | null | undefined>(undefined); // aluno cujos dados estão carregados ou carregando
   const timer = useRef<number>();
-
   const avisar = useCallback((msg: string) => {
     setToast(msg);
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setToast(null), 4000);
   }, []);
+  return (
+    <AvisoCtx.Provider value={avisar}>
+      {children}
+      <div role="status" className={toast ? 'toast' : 'sr-only'}>{toast}</div>
+    </AvisoCtx.Provider>
+  );
+}
+
+function EstadoProvider({ children }: { children: ReactNode }) {
+  const avisar = useAviso();
+  const [conteudo, setConteudo] = useState<Conteudo | null>(null);
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [dados, setDados] = useState<DadosAluno | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const dadosRef = useRef<DadosAluno | null>(null);
+  const conteudoRef = useRef<Conteudo | null>(null);
+  const usuarioRef = useRef<Usuario | null>(null);
+  const idCarregado = useRef<string | null | undefined>(undefined); // aluno cujos dados estão carregados ou carregando
 
   const definirDados = useCallback((d: DadosAluno | null) => { dadosRef.current = d; setDados(d); }, []);
 
@@ -123,13 +151,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [definirDados]);
 
-  // Mostra na hora e grava em seguida. Se a gravação falhar, avisa e relê do servidor, para a tela não mostrar
-  // algo que não foi salvo.
-  const atualizar = useCallback(async (fn: (d: DadosAluno) => DadosAluno, m: Mudancas) => {
+  // Mostra na hora e, se houver o que gravar, grava em seguida. Se a gravação falhar, avisa e relê do servidor,
+  // para a tela não mostrar algo que não foi salvo.
+  const atualizar = useCallback(async (fn: (d: DadosAluno) => DadosAluno, m?: Mudancas) => {
     const atual = dadosRef.current;
     if (!atual) return null;
     const novo = fn(atual);
     definirDados(novo);
+    if (!m) return novo;
     try {
       await repo.salvar(novo, m);
     } catch (e) {
@@ -145,10 +174,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (nomeConta && dados?.perfil.nome === 'Estudante') atualizar((d) => ({ ...d, perfil: { ...d.perfil, nome: nomeConta } }), { nome: true });
   }, [nomeConta, dados?.perfil.nome, atualizar]);
 
+  const conta = useMemo(() => ({ usuario, carregando, erro, recarregar }), [usuario, carregando, erro, recarregar]);
+  const valorConteudo = useMemo(() => ({ conteudo }), [conteudo]);
+  const progresso = useMemo(() => ({ dados, atualizar, sincronizar }), [dados, atualizar, sincronizar]);
   return (
-    <AppCtx.Provider value={{ conteudo, usuario, dados, carregando, erro, atualizar, sincronizar, avisar, recarregar }}>
-      {children}
-      {toast && <div className="toast" role="status">{toast}</div>}
-    </AppCtx.Provider>
+    <ContaCtx.Provider value={conta}>
+      <ConteudoCtx.Provider value={valorConteudo}>
+        <ProgressoCtx.Provider value={progresso}>{children}</ProgressoCtx.Provider>
+      </ConteudoCtx.Provider>
+    </ContaCtx.Provider>
   );
+}
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  return <AvisoProvider><EstadoProvider>{children}</EstadoProvider></AvisoProvider>;
 }

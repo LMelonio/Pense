@@ -25,27 +25,27 @@ export function QuestaoView({ q, recorte, nomeExame, textoBase, estados, escolhe
   const soltas = figurasSoltas(q.texto_apoio, q.figuras);
   return (
     <>
-      <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+      <div className="row quebra gap-8">
         <span className="pill" style={{ background: cor.suave, color: cor.forte }}>{recorte ? `${recorte.nome} · ${q.assunto}` : q.assunto}</span>
         <span className="muted">{origemDe(q, nomeExame)}</span>
       </div>
       {textoBase && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <button type="button" className="list-row" style={{ background: 'var(--bg-licao)' }} onClick={() => setBaseAberta(!baseAberta)} aria-expanded={baseAberta}>
-            <span className="spacer small" style={{ fontWeight: 600, color: 'var(--text2)' }}>Texto-base</span>
-            <span className="small" style={{ color: 'var(--primary)', fontWeight: 600 }}>{baseAberta ? 'Recolher' : 'Ler'}</span>
+        <div className="card texto-base">
+          <button type="button" className="list-row texto-base-topo" onClick={() => setBaseAberta(!baseAberta)} aria-expanded={baseAberta}>
+            <span className="spacer small peso-600 texto2">Texto-base</span>
+            <span className="small peso-600 tinta-primaria">{baseAberta ? 'Recolher' : 'Ler'}</span>
           </button>
-          {baseAberta && <div style={{ padding: '4px 16px 16px' }}><Texto md={textoBase} /></div>}
+          {baseAberta && <div className="texto-base-corpo"><Texto md={textoBase} /></div>}
         </div>
       )}
       {(q.texto_apoio || soltas.length > 0) && (
         <div className="card a-rise">
           <Texto md={q.texto_apoio} figuras={q.figuras} />
-          {soltas.map((f) => <img key={f.imagem} src={`./${f.imagem}`} alt={f.descricao} style={{ maxWidth: '100%', borderRadius: 10, marginTop: 8 }} loading="lazy" />)}
+          {soltas.map((f) => <img key={f.imagem} src={`./${f.imagem}`} alt={f.descricao} className="figura-solta" loading="lazy" />)}
         </div>
       )}
-      <div style={{ fontWeight: 600, fontSize: '1.1em', lineHeight: 1.4 }}><Texto md={q.comando} className="" /></div>
-      <div role="radiogroup" aria-label="Alternativas" className="col" style={{ gap: 10 }}>
+      <div className="comando"><Texto md={q.comando} className="" /></div>
+      <div role="radiogroup" aria-label="Alternativas" className="col gap-10" data-questao={q.id}>
         {q.alternativas.map((a) => {
           const e = estados[a.letra] ?? 'neutra';
           const cls = e === 'neutra' ? '' : e;
@@ -56,7 +56,7 @@ export function QuestaoView({ q, recorte, nomeExame, textoBase, estados, escolhe
               <span className="alt-body">
                 {a.texto ? <Texto md={a.texto} className="" /> : a.imagem ? <img src={`./${a.imagem}`} alt={`Alternativa ${a.letra}`} /> : null}
               </span>
-              {rotuloExtra?.[a.letra] && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--coral-dark)', whiteSpace: 'nowrap', textDecoration: 'none' }}>{rotuloExtra[a.letra]}</span>}
+              {rotuloExtra?.[a.letra] && <span className="rotulo-alt">{rotuloExtra[a.letra]}</span>}
               {e === 'certa' && <IcCheck color="var(--ok-text)" />}
               {e === 'errada' && <IcX color="var(--coral-dark)" size={20} />}
             </button>

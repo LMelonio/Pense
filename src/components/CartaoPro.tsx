@@ -11,26 +11,25 @@ export function CartaoPro() {
   const { dados, atualizar, avisar } = useDados();
   const [plano, setPlano] = useState<'mensal' | 'anual'>('anual');
   return (
-    <div className="col" style={{ background: 'var(--lav)', color: '#fff', borderRadius: 22, padding: 16, gap: 12 }}>
-      <div className="row"><span className="title" style={{ fontSize: 22 }}>Pense Pro</span><span className="pill" style={{ background: 'var(--lav-dark)' }}>Em breve</span></div>
-      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, lineHeight: 1.5 }}>
+    <div className="col cartao-pro">
+      <div className="row"><span className="title fs-22">Pense Pro</span><span className="pill pilula-lav-escura">Em breve</span></div>
+      <ul className="lista-pro">
         <li>Vidas ilimitadas, sem anúncios</li><li>Simulados completos, com o tempo da prova</li><li>Correção de redação com IA</li><li>Relatório de desempenho</li>
       </ul>
-      <div role="radiogroup" aria-label="Escolha do plano" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <div role="radiogroup" aria-label="Escolha do plano" className="grade-2">
         {PLANOS.map((x) => (
-          <button key={x.k} role="radio" aria-checked={plano === x.k} onClick={() => setPlano(x.k)}
-            style={{ position: 'relative', textAlign: 'left', padding: 12, borderRadius: 16, border: `2px solid ${plano === x.k ? '#fff' : 'rgba(255,255,255,.35)'}`, background: plano === x.k ? 'var(--lav-dark)' : 'transparent', color: '#fff', cursor: 'pointer' }}>
-            {x.tag && <span style={{ position: 'absolute', top: -10, right: 10, background: '#F2C14E', color: '#5A3E00', borderRadius: 99, fontSize: 11, fontWeight: 700, padding: '2px 8px' }}>{x.tag}</span>}
-            <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{x.n}</span>
-            <span className="big" style={{ display: 'block', fontSize: 20 }}>{x.p}</span>
-            <span style={{ display: 'block', fontSize: 12 }}>{x.s}</span>
+          <button key={x.k} role="radio" aria-checked={plano === x.k} onClick={() => setPlano(x.k)} className={plano === x.k ? 'plano sel' : 'plano'}>
+            {x.tag && <span className="plano-tag">{x.tag}</span>}
+            <span className="plano-nome">{x.n}</span>
+            <span className="big bloco fs-20">{x.p}</span>
+            <span className="bloco fs-12">{x.s}</span>
           </button>
         ))}
       </div>
-      <button className="btn white" style={{ color: 'var(--lav-dark)' }} onClick={async () => { await atualizar((d) => ({ ...d, interessePro: plano }), { interessePro: true }); avisar('Pronto! Vamos te avisar quando o Pro lançar.'); }}>
+      <button className="btn white pro" onClick={async () => { await atualizar((d) => ({ ...d, interessePro: plano }), { interessePro: true }); avisar('Pronto! Vamos te avisar quando o Pro lançar.'); }}>
         {dados.interessePro ? 'Pronto, vamos te avisar' : 'Me avise quando lançar'}
       </button>
-      <span style={{ fontSize: 12 }}>Preços em teste. Ninguém é cobrado agora.</span>
+      <span className="fs-12">Preços em teste. Ninguém é cobrado agora.</span>
     </div>
   );
 }

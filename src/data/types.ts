@@ -56,6 +56,8 @@ export interface Perfil {
   questoes_feitas: number;
   acertos_total: number;
   revisoes_concluidas: number;
+  /** Dia (AAAA-MM-DD, no fuso do aluno) em que a revisão já devolveu a vida: 1 por dia. */
+  dia_vida_revisao: string | null;
 }
 
 export type Tema = 'claro' | 'escuro' | 'auto';
@@ -120,6 +122,17 @@ export interface Sessao {
   total: number;
   xp: number;
   perfeita: boolean;
+}
+
+/** Início de uma lição, desafio ou revisão. Lição e desafio levam as questões montadas (o servidor confere a lista). */
+export type NovaSessao = Pick<Sessao, 'tipo' | 'exame_id' | 'recorte_id' | 'assunto'> & { unidade: number | null; questoes: string[] | null };
+
+/** Resultado de uma sessão: calculado pelo banco (concluir_sessao) ou, no modo demonstração, com as mesmas regras (domain/sessoes.ts). */
+export interface ResumoSessao {
+  acertos: number; total: number; xp: number; perfeita: boolean; aprovado: boolean | null;
+  conquistas: string[]; coroaAntes: number; coroaDepois: number;
+  /** Revisão: devolveu a vida do dia. */
+  vidaGanha: boolean;
 }
 
 export interface DadosAluno {

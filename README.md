@@ -37,7 +37,8 @@ No primeiro acesso o aluno escolhe só a **língua estrangeira** (Inglês ou Esp
 ### Matérias e vidas
 
 - O conteúdo do ENEM é organizado por **matéria** (Português, Literatura, Inglês ou Espanhol, Artes, Educação Física, Tecnologia, História, Geografia, Filosofia, Sociologia, Biologia, Química, Física e Matemática). Dentro de cada matéria ficam os **subconteúdos** (ex.: Geografia › Urbanização). Início e Trilha usam as matérias nas abas.
-- O aluno tem **3 vidas**; errar numa lição gasta 1, e 1 volta a cada 2 horas. Sem vidas, ele escolhe: **esperar**, **assistir a um anúncio** (+1 vida) ou conhecer o **Pense Pro** (vidas ilimitadas, ainda "em breve"). Terminar uma revisão recuperando pelo menos uma questão também devolve 1 vida. O servidor limita as vidas extras a 5 por dia com anúncio e 5 por dia com revisão.
+- O aluno tem **3 vidas**; errar numa lição gasta 1 (a primeira lição do aluno não gasta, até ele responder a primeira questão), e 1 volta a cada 2 horas. Sem vidas, ele escolhe: **revisar e recuperar 1 vida** (quando há questões vencidas na revisão; na primeira vez sem vidas, também adiantando a revisão), **assistir a um anúncio** (+1 vida), **adiantar a revisão** como treino, **esperar** ou conhecer o **Pense Pro** (vidas ilimitadas, ainda "em breve"). A revisão devolve no máximo 1 vida por dia, por questão vencida recuperada (a exceção é a primeira vez sem vidas, quando o treino também devolve); o anúncio, até 5 em 24 horas.
+- **Revisão:** a questão errada volta no dia seguinte. Revisar antes do dia ("Adiantar revisão") é treino, sem XP. Acertando no dia, de primeira e sem dica, ela sai da lista de erros e volta para confirmar em 7, 21 e 60 dias; com dica ou só na 2ª tentativa, volta em 3 dias (e a 2ª tentativa conta como uma dica a mais no XP).
 - O anúncio ainda é um **espaço reservado** com contagem de 15 s (`src/components/AnuncioPremiado.tsx`). Para veicular anúncios de verdade, troque o miolo do componente pela chamada da rede de anúncios premiados (ex.: Google Ad Manager).
 
 > **E-mails do Supabase:** o envio padrão do Supabase só entrega para os e-mails da equipe do projeto e tem limite de poucos envios por hora. Para "Esqueci minha senha" funcionar para qualquer aluno, configure um SMTP próprio (Resend, Brevo, SES…) em *Authentication › Emails › SMTP Settings*. Com "Confirm email" desligado, criar conta não depende de e-mail.
@@ -45,7 +46,7 @@ No primeiro acesso o aluno escolhe só a **língua estrangeira** (Inglês ou Esp
 ## 3. Criar o banco no Supabase (10 min)
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (plano Free).
-2. Abra o **SQL Editor** e rode `supabase/setup_completo.sql`. Ele cria as tabelas, as regras de acesso (RLS), os gatilhos e os dados base (é a soma das migrations `0001` a `0008`; num banco que já existe, rode só as migrations que faltam).
+2. Abra o **SQL Editor** e rode `supabase/setup_completo.sql`. Ele cria as tabelas, as regras de acesso (RLS), os gatilhos e os dados base (é a soma das migrations `0001` a `0010`; num banco que já existe, rode só as migrations que faltam).
 3. Copie `.env.example` para `.env` e preencha, com os dados de *Project Settings › API Keys*:
    - `VITE_SUPABASE_URL`: `https://<id-do-projeto>.supabase.co` (não o link do painel).
    - `VITE_SUPABASE_ANON_KEY`: a chave **publishable** (`sb_publishable_…`) ou a **anon** legada (`eyJ…`).
@@ -100,14 +101,17 @@ A chave publishable/anon pode ficar no app publicado, porque o acesso é protegi
 src/
   screens/      telas: Entrar, NovaSenha, PrimeiroAcesso, Inicio, Licao, Resultado, Trilha, Revisar, Refazer, Perfil, Configuracoes, Pro
   components/   ícones, mascote, barra de navegação, campo de senha, questão, texto e fórmulas, sem vidas, anúncio premiado, cartão do Pro
-  domain/       regras.ts (XP, vidas, coroas, sequência, revisão espaçada, conquistas)
-  data/         repo.ts (contrato e erros em português), supabaseRepo.ts (banco), demoRepo.ts (navegador)
-  state/        AppContext (usuário, dados, tema)
+  domain/       regras.ts (XP, vidas, coroas, sequência, revisão espaçada, conquistas), sessoes.ts (fechamento das
+                sessões, com as contas do banco), catalogo.ts (índice por id) e os testes (*.test.ts)
+  data/         repo.ts (contrato e erros em português), supabaseRepo.ts (banco), demoRepo.ts (modo demonstração:
+                faz o papel do servidor no navegador)
+  state/        AppContext (conta, conteúdo, progresso e aviso), useSessaoEstudo (ciclo de uma sessão)
   styles/       global.css (cores, tipografia, modo noturno)
 public/data/    conteudo.json (questões empacotadas, usadas também como reserva offline)
 public/imagens/ figuras das questões
 supabase/       migrations, seed e setup_completo.sql
-scripts/        gerar-seed-sql.mjs e seed-supabase.mjs
+scripts/        gerar-seed-sql.mjs, seed-supabase.mjs e qa/ (bateria de QA no modo demonstração)
+docs/           ARQUITETURA.md (mapa dos módulos, seams e testes)
 ```
 
 ## 7. Banco de dados
@@ -141,13 +145,15 @@ A migration `0007` faz o servidor conferir também o que o app manda nas sessõe
 - a **revisão** só aceita questões pendentes na fila do aluno (até 10 por sessão), no máximo 2 tentativas por questão, e nada depois de acertar ou de ver a resolução. As dicas são registradas no banco quando o aluno abre cada uma (`abrir_dica`);
 - o aluno não apaga a própria linha de preferências, e o app grava só os campos que mudaram.
 
-No modo demonstração (sem Supabase) vale só o cálculo do app, salvo no navegador.
+A migration `0009` muda as regras da revisão e das vidas (decisões de 26/10/2026): revisão adiantada é treino (sem XP, sem domínio, sem vida); a vida da revisão vem só de questão vencida, 1 por dia; a questão dominada volta para confirmar; a primeira lição não gasta vida; acertar na 2ª tentativa conta como uma dica a mais. A `0010` ajusta três pontos (mesmo dia): a primeira lição grátis acaba quando o aluno responde a primeira questão, mesmo sem concluir; acertar só na 2ª tentativa também não domina (volta em 3 dias); e, na primeira vez sem vidas e sem nada vencido, a revisão adiantada devolve 1 vida (sem XP, uma vez só). **Rode a `0009` e a `0010` no SQL Editor, nessa ordem, antes de publicar esta versão do app.**
+
+No modo demonstração (sem Supabase), o `demoRepo` faz o papel do servidor com as mesmas contas (`src/domain/sessoes.ts`), e o progresso fica no navegador. A suíte `src/domain/paridade.test.ts` roda as mesmas sessões contra os dois lados.
 
 ### Segurança: o que ainda depende de configuração
 
-- **Confirmação de e-mail e CAPTCHA:** para abrir para alunos, ligue *Confirm email* (precisa de SMTP próprio, veja a seção 2) e o CAPTCHA (Cloudflare Turnstile) em *Authentication › Attack Protection*, que protege o cadastro e o acesso sem login.
-- **Cabeçalhos:** o build publica uma política de segurança de conteúdo (CSP) numa `<meta>`. O GitHub Pages não deixa configurar cabeçalhos; para bloquear o app dentro de iframes (`frame-ancestors`), use uma hospedagem com cabeçalhos (Cloudflare Pages, Netlify).
-- **Termos de uso e Política de privacidade:** a tela de entrada cita os dois, mas os textos ainda não existem.
+- **Confirmação de e-mail e CAPTCHA:** para abrir para alunos, ligue *Confirm email* (precisa de SMTP próprio, veja a seção 2) e o CAPTCHA (Cloudflare Turnstile) em *Authentication › Attack Protection*, que protege o cadastro e o acesso sem login. O widget já está no app: ponha a chave de site em `VITE_TURNSTILE_SITE_KEY` (no `.env` e nos secrets do deploy); sem ela, nada é carregado do Cloudflare.
+- **Cabeçalhos:** o build publica a política de segurança de conteúdo (CSP) numa `<meta>` e gera `dist/_headers` com a mesma política, `frame-ancestors 'none'`, `X-Content-Type-Options` e `Referrer-Policy`. O GitHub Pages ignora esse arquivo; o Cloudflare Pages e o Netlify o aplicam.
+- **Termos de uso e Política de privacidade:** `public/termos.html` e `public/privacidade.html`, ligados na entrada e nas Configurações. Antes de abrir ao público, preencha o responsável pelos dados e o e-mail de contato (marcados com `PREENCHER`).
 
 ## 8. Comandos
 
@@ -156,7 +162,20 @@ No modo demonstração (sem Supabase) vale só o cálculo do app, salvo no naveg
 | `npm run dev` | ambiente local |
 | `npm run build` | gera a pasta `dist` |
 | `npm run preview` | testa o build |
-| `npm run typecheck` | checa os tipos |
+| `npm run typecheck` | checa os tipos (app e testes) |
+| `npm test` | regras do app, regras do banco num Postgres local (PGlite) e paridade app × banco; antes, uma vez: `npm install --no-save @electric-sql/pglite@0.2.17`. Roda sozinho no GitHub a cada push (`.github/workflows/testes.yml`) |
+| `bash scripts/qa/subir_demo.sh . 5173` e `bash scripts/qa/jornada.sh http://127.0.0.1:5173/ qa-saida` | bateria de QA no modo demonstração, sem tocar no banco real: 19 capturas, axe, console e rede (precisa do [agent-browser](https://agent-browser.dev)); `node scripts/qa/montagem.mjs qa-saida --antes <pasta>` compara as capturas |
 | `npm run seed` | carrega as questões no Supabase (precisa da chave secret no `.env`) |
 | `npm run gerar-sql` | regera `supabase/seed/*.sql` a partir do `conteudo.json` |
-| `node scripts/testar-banco.mjs` | testa as regras do banco (migrations, pontuação, trapaças) num Postgres local; antes, uma vez: `npm install --no-save @electric-sql/pglite@0.2.17`. Roda sozinho no GitHub a cada push (`.github/workflows/testes.yml`) |
+| `npm run importar-excel -- <arquivo>` | importa a planilha ou um lote JSON de questões para o `conteudo.json` (com `--conferir`, só valida) |
+| `npm run exportar-excel` | regera a planilha de revisão `conteudo/Pense_Questoes.xlsx` a partir do `conteudo.json` |
+
+## 9. Atualizar e adicionar questões
+
+As regras de transcrição, dicas, explicação e assuntos estão em `conteudo/PROMPT_PENSE.md`.
+
+1. O conteúdo entra **só** pelo importador: `npm run importar-excel -- conteudo/Pense_Questoes.xlsx` (planilha) ou `npm run importar-excel -- conteudo/lotes/<lote>.json` (lote de questões novas ou corrigidas). Com `--conferir`, ele só valida e não grava nada; sem erros, grava `public/data/conteudo.json` e `supabase/seed/99_ativar_desativar.sql`. Nunca edite o `conteudo.json` à mão.
+2. `npm run exportar-excel` regera `conteudo/Pense_Questoes.xlsx` para revisar no Excel (id em vermelho quando não bate com ano, dia e número; assunto em amarelo quando não existe na matéria).
+3. Depois, leve ao banco: `npm run seed` (carga direta) ou `npm run gerar-sql` e rode no SQL Editor os arquivos de `supabase/seed/`, do `01` até o `99`.
+4. Questão retirada usa `acao = excluir`: sai do app e fica `ativa = false` no banco, preservando o histórico dos alunos. Nunca apague questão nem mude o id de uma existente.
+5. Imagens ficam em `public/imagens/{ano}/D{dia}/` (2ª aplicação: `public/imagens/{ano}-A2/D{dia}/`). Para recortar figuras dos PDFs de `conteudo/provas/` (fora do GitHub), use `python scripts/figura.py` (precisa de `python -m pip install pymupdf pillow`).

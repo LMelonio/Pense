@@ -31,4 +31,23 @@ await lote('textos_base', Object.entries(c.textos_base).map(([id, texto]) => ({ 
 await lote('questoes', c.questoes.map(({ alternativas, figuras, ...x }) => ({ ...x, nivel: 'Médio' })), 'id');
 await lote('alternativas', c.questoes.flatMap((x) => x.alternativas.map((a) => ({ questao_id: x.id, ...a }))), 'questao_id,letra');
 await lote('questao_figuras', c.questoes.flatMap((x) => x.figuras.map((f, i) => ({ questao_id: x.id, ordem: i + 1, ...f }))), 'questao_id,ordem');
+
+// O banco espelha o conteudo.json: questão que saiu do JSON fica inativa (o histórico dos alunos é preservado).
+const ids = new Set(c.questoes.map((x) => x.id));
+const noBanco = [];
+for (let de = 0; ; de += 1000) {
+  const { data, error } = await sb.from('questoes').select('id, ativa').eq('exame_id', 'enem').range(de, de + 999);
+  if (error) throw new Error(`questoes: ${error.message}`);
+  noBanco.push(...data);
+  if (data.length < 1000) break;
+}
+const desativar = noBanco.filter((x) => x.ativa && !ids.has(x.id)).map((x) => x.id);
+const reativar = noBanco.filter((x) => !x.ativa && ids.has(x.id)).map((x) => x.id);
+for (const [lista, ativa] of [[desativar, false], [reativar, true]]) {
+  for (let i = 0; i < lista.length; i += 200) {
+    const { error } = await sb.from('questoes').update({ ativa }).in('id', lista.slice(i, i + 200));
+    if (error) throw new Error(`questoes (ativa): ${error.message}`);
+  }
+}
+console.log(`✓ ativas: ${desativar.length} desativadas, ${reativar.length} reativadas`);
 console.log('Carga concluída.');

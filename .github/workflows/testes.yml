@@ -1,6 +1,7 @@
-# Testa as regras do banco (migrations e funções) num Postgres local a cada push e pull request.
+# Confere os tipos e roda os testes a cada push e pull request: regras do app (src/domain/regras.test.ts), regras do
+# banco num Postgres local (banco.test.ts, com PGlite) e a paridade app × banco (paridade.test.ts).
 # Não depende do Supabase nem de secrets.
-name: Testes do banco
+name: Testes
 
 on:
   push:
@@ -21,4 +22,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm install --no-save @electric-sql/pglite@0.2.17
-      - run: node scripts/testar-banco.mjs
+      - run: npm run typecheck
+      - run: npm test

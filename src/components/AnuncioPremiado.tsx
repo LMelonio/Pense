@@ -22,14 +22,14 @@ export function AnuncioPremiado({ aberto, concluir, cancelar }: { aberto: boolea
   // Portal no body: o anúncio cobre a tela inteira mesmo quando aberto de dentro de uma folha.
   return createPortal(
     <div className="anuncio" role="dialog" aria-modal="true" aria-label="Anúncio" tabIndex={-1} ref={ref}>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="pill" style={{ background: 'var(--card)', border: '1.5px solid var(--line)', color: 'var(--text2)' }}>Anúncio{resta > 0 ? ` · ${resta} s` : ''}</span>
-        <button className="linkbtn" onClick={cancelar} aria-label="Fechar o anúncio sem ganhar a vida" style={{ color: 'var(--icon)' }}><IcX /></button>
+      <div className="row entre">
+        <span className="pill pilula-card">Anúncio{resta > 0 ? ` · ${resta} s` : ''}</span>
+        <button className="linkbtn cor-icone" onClick={cancelar} aria-label="Fechar o anúncio sem ganhar a vida"><IcX /></button>
       </div>
       <div className="anuncio-espaco">
         <Mascote largura={120} />
-        <b style={{ fontFamily: 'var(--font-title)', fontSize: 20 }}>Espaço do anúncio</b>
-        <span className="muted" style={{ maxWidth: 260 }}>Aqui vai aparecer o vídeo da rede de anúncios. Assista até o fim para ganhar 1 vida.</span>
+        <b className="anuncio-titulo">Espaço do anúncio</b>
+        <span className="muted largura-260">Aqui vai aparecer o vídeo da rede de anúncios. Assista até o fim para ganhar 1 vida.</span>
       </div>
       <button className="btn" disabled={resta > 0} onClick={concluir}>{resta > 0 ? `Sua vida chega em ${resta} s` : 'Receber 1 vida'}</button>
     </div>,

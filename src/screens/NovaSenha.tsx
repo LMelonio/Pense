@@ -37,18 +37,20 @@ export default function NovaSenha() {
 
   return (
     <div className="app">
-      <header className="row" style={{ padding: '14px 16px 10px', borderBottom: '1.5px solid var(--line)', gap: 8 }}>
-        <Link to={destino} replace onClick={limparRetornoDaUrl} aria-label="Voltar" style={{ color: 'var(--text)', display: 'grid', placeItems: 'center', width: 42, height: 42 }}><IcVoltar /></Link>
-        <h1 className="title" style={{ fontSize: 22 }}>{recuperacao ? 'Criar nova senha' : 'Alterar senha'}</h1>
+      <header className="row cabecalho-voltar">
+        <Link to={destino} replace onClick={limparRetornoDaUrl} aria-label="Voltar" className="botao-voltar"><IcVoltar /></Link>
+        <h1 className="title fs-22">{recuperacao ? 'Criar nova senha' : 'Alterar senha'}</h1>
       </header>
-      <form className="screen" onSubmit={salvar} noValidate>
-        <div className="col" style={{ alignItems: 'center' }}><Mascote largura={110} /></div>
-        <p className="small" style={{ color: 'var(--text2)' }}>Escolha uma senha com 6 ou mais caracteres. Ela vale para entrar com o seu e-mail.</p>
+      <main className="screen">
+      <form className="col gap-16" onSubmit={salvar} noValidate>
+        <div className="col alinha-centro"><Mascote largura={110} /></div>
+        <p className="small texto2">Escolha uma senha com 6 ou mais caracteres. Ela vale para entrar com o seu e-mail.</p>
         <CampoSenha valor={senha} mudar={setSenha} rotulo="Nova senha" nova />
         <CampoSenha valor={conf} mudar={setConf} rotulo="Repita a nova senha" nova />
         {erro && <p className="erro-msg" role="alert">{erro}</p>}
         <button className="btn" type="submit" disabled={ocupado}>Salvar nova senha</button>
       </form>
+      </main>
     </div>
   );
 }

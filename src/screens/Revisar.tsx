@@ -1,80 +1,97 @@
 // Revisar: treino dos erros. Um botão principal, sem mostrar respostas.
+// A revisão do dia tem os erros que venceram e as questões dominadas que voltaram para confirmar; sem nada vencido,
+// dá para adiantar a revisão dos erros guardados (treino, sem XP).
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useDados } from '../state/AppContext';
 import { BannerDemo, BarraNav, Stats, corDe } from '../components/Base';
 import { IcSeta, Mascote } from '../components/Icones';
-import { revisaoPendente, revisaoVencida } from '../domain/regras';
+import { QUESTOES_POR_REVISAO, XP_REVISAO, chaveTema, revisaoPendente, revisaoVencida, vidaPelaRevisao, vidaPeloTreino } from '../domain/regras';
+import { catalogo } from '../domain/catalogo';
 import { plural } from '../lib/texto';
 
 export default function Revisar() {
   const { dados, conteudo } = useDados();
-  const vencidas = revisaoVencida(dados);
-  const pendentes = revisaoPendente(dados);
-  const lista = vencidas.length ? vencidas : pendentes;
+  const { vencidas, lista } = useMemo(() => {
+    const vencidas = revisaoVencida(dados);
+    return { vencidas, lista: vencidas.length ? vencidas : revisaoPendente(dados) };
+  }, [dados]);
+  const erros = vencidas.filter((r) => r.status === 'pendente').length;
+  const confirmar = vencidas.length - erros; // dominadas que voltaram
+  const vida = vencidas.length ? vidaPelaRevisao(dados) : vidaPeloTreino(dados);
   const grupos = useMemo(() => {
     // Agrupa por matéria + assunto: "Interpretação de texto" de Inglês e de Português são grupos diferentes.
-    const m = new Map<string, { chave: string; assunto: string; recorte_id: string; recorte: string; cor: string; n: number }>();
+    const cat = catalogo(conteudo);
+    const m = new Map<string, { chave: string; assunto: string; recorte_id: string; recorte: string; cor: string; erros: number; confirmar: number }>();
     for (const r of lista) {
-      const q = conteudo.questoes.find((x) => x.id === r.questao_id);
+      const q = cat.questao(r.questao_id);
       if (!q) continue;
-      const rc = conteudo.recortes.find((x) => x.id === q.recorte_id);
-      const chave = `${q.recorte_id}|${q.assunto}`;
-      const g = m.get(chave) ?? { chave, assunto: q.assunto, recorte_id: q.recorte_id, recorte: rc?.nome ?? '', cor: rc?.cor ?? 'lav', n: 0 };
-      g.n++; m.set(chave, g);
+      const rc = cat.recorte(q.recorte_id);
+      const chave = chaveTema(q.recorte_id, q.assunto);
+      const g = m.get(chave) ?? { chave, assunto: q.assunto, recorte_id: q.recorte_id, recorte: rc?.nome ?? '', cor: rc?.cor ?? 'lav', erros: 0, confirmar: 0 };
+      if (r.status === 'dominada') g.confirmar++; else g.erros++;
+      m.set(chave, g);
     }
-    return [...m.values()].sort((a, b) => b.n - a.n);
+    return [...m.values()].sort((a, b) => b.erros + b.confirmar - (a.erros + a.confirmar));
   }, [lista, conteudo]);
-  const minutos = Math.max(1, Math.round(Math.min(lista.length, 10) * 0.7));
+  const minutos = Math.max(1, Math.round(Math.min(lista.length, QUESTOES_POR_REVISAO) * 0.7));
 
   return (
     <div className="app">
       <BannerDemo />
-      <div className="screen with-nav">
-        <header className="row" style={{ justifyContent: 'space-between' }}>
-          <div className="col" style={{ gap: 0 }}><h1 className="title">Revisar</h1><span className="muted">Seus erros viram acertos aqui</span></div>
+      <main className="screen with-nav">
+        <header className="row entre">
+          <div className="col gap-0"><h1 className="title">Revisar</h1><span className="muted">Seus erros viram acertos aqui</span></div>
           <Stats />
         </header>
 
-        <section className="card a-rise col" style={{ alignItems: 'center', textAlign: 'center', gap: 12, padding: '22px 20px 20px', position: 'relative', overflow: 'hidden' }}>
-          <span aria-hidden="true" style={{ position: 'absolute', left: -40, top: -60, width: 200, height: 200, borderRadius: '50%', background: 'var(--lav-soft)' }} />
-          <span aria-hidden="true" style={{ position: 'absolute', right: -50, bottom: -70, width: 180, height: 180, borderRadius: '50%', background: 'var(--primary-soft)' }} />
-          <div style={{ position: 'relative' }}><Mascote largura={150} /></div>
+        <section className="card a-rise col revanche">
+          <span aria-hidden="true" className="bolha bolha-lav" />
+          <span aria-hidden="true" className="bolha bolha-primaria" />
+          <div className="relativa"><Mascote largura={150} /></div>
           {lista.length ? <>
-            <h2 className="title" style={{ fontSize: 28, position: 'relative' }}>{lista.length} {lista.length === 1 ? 'questão pedindo' : 'questões pedindo'} revanche</h2>
-            <p className="small" style={{ color: 'var(--text2)', position: 'relative', maxWidth: 290 }}>
-              {vencidas.length ? 'Você vai refazer as que errou, sem ver a resposta antes. Acertou, ela sai da lista.' : 'Nada vence hoje. Se quiser, adiante a revisão destas questões.'}
+            <h2 className="title fs-28 relativa">{lista.length} {lista.length === 1 ? 'questão pedindo' : 'questões pedindo'} revanche</h2>
+            {confirmar > 0 && <span className="pill pilula-lav alta-28 relativa">{plural(erros, 'erro', 'erros')} · {confirmar} para confirmar</span>}
+            <p className="small texto2 relativa largura-300">
+              {vencidas.length
+                ? `Você vai refazer as que errou, sem ver a resposta antes. Acertou de primeira e sem dica, ela sai da lista.${confirmar ? ' As que você já tinha recuperado voltam para confirmar.' : ''}`
+                : vida ? 'Nada vence hoje. Adiante a revisão: é treino, sem XP, mas nesta primeira vez, acertando pelo menos 1, você recupera 1 vida.'
+                : 'Nada vence hoje. Se quiser, adiante a revisão: é treino, sem XP, e as questões voltam amanhã, valendo.'}
             </p>
-            <div className="row" style={{ position: 'relative', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <span className="pill" style={{ background: 'var(--bg)', height: 30 }}>~{minutos} min</span>
-              <span className="pill" style={{ background: 'var(--lav-soft)', color: 'var(--lav-dark)', height: 30 }}>+5 XP por acerto</span>
-              <span className="pill" style={{ background: 'var(--coral-soft)', color: 'var(--coral-dark)', height: 30 }}>+1 vida no fim</span>
+            <div className="row relativa gap-8 quebra just-centro">
+              <span className="pill pilula-bg alta-30">~{minutos} min</span>
+              {vencidas.length
+                ? <span className="pill pilula-lav alta-30">+{XP_REVISAO[0]} XP por acerto</span>
+                : <span className="pill pilula-lav alta-30">treino, sem XP</span>}
+              {vida && <span className="pill pilula-coral alta-30">+1 vida no fim</span>}
             </div>
-            <Link to={vencidas.length ? '/refazer' : '/refazer?todas=1'} className="btn" style={{ position: 'relative' }}>{vencidas.length ? 'Começar revisão' : 'Adiantar revisão'}</Link>
+            <Link to={vencidas.length ? '/refazer' : '/refazer?todas=1'} className="btn relativa">{vencidas.length ? 'Revisar agora' : 'Adiantar revisão'}</Link>
           </> : <>
-            <h2 className="title" style={{ fontSize: 26, position: 'relative' }}>Nenhum erro para revisar</h2>
-            <p className="small" style={{ color: 'var(--text2)', position: 'relative' }}>Quando você errar uma questão, ela aparece aqui no dia seguinte.</p>
-            <Link to="/inicio" className="btn" style={{ position: 'relative' }}>Fazer uma lição</Link>
+            <h2 className="title fs-26 relativa">Nenhum erro para revisar</h2>
+            <p className="small texto2 relativa">Quando você errar uma questão, ela aparece aqui no dia seguinte.</p>
+            <Link to="/inicio" className="btn relativa">Fazer uma lição</Link>
           </>}
         </section>
 
         {grupos.length > 0 && (
-          <section className="col" style={{ gap: 10 }} aria-label="De onde vêm seus erros">
-            <h2 className="h2" style={{ fontSize: 18 }}>De onde vêm seus erros</h2>
+          <section className="col gap-10" aria-label="De onde vêm seus erros">
+            <h2 className="h2 fs-18">De onde vêm seus erros</h2>
             <div className="list-card">
               {grupos.map((g) => (
                 <Link key={g.chave} to={`/refazer?recorte=${encodeURIComponent(g.recorte_id)}&tema=${encodeURIComponent(g.assunto)}${vencidas.length ? '' : '&todas=1'}`} className="list-row">
-                  <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: '50%', background: corDe(g.cor).barra, flexShrink: 0 }} />
-                  <span className="col spacer" style={{ gap: 0 }}><span style={{ fontWeight: 600 }}>{g.assunto}</span><span className="muted">{g.recorte}</span></span>
-                  <span className="row" style={{ gap: 3 }} role="img" aria-label={`${plural(g.n, 'questão', 'questões')} para refazer`}>{Array.from({ length: Math.min(g.n, 6) }, (_, i) => <span key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--coral)' }} />)}</span>
+                  <span aria-hidden="true" className="ponto-materia" style={{ background: corDe(g.cor).barra }} />
+                  <span className="col spacer gap-0"><span className="peso-600">{g.assunto}</span><span className="muted">{g.recorte}</span></span>
+                  <span className="row gap-3" role="img" aria-label={[g.erros && plural(g.erros, 'erro', 'erros'), g.confirmar && `${g.confirmar} para confirmar`].filter(Boolean).join(' e ')}>
+                    {Array.from({ length: Math.min(g.erros + g.confirmar, 6) }, (_, i) => <span key={i} className={i < g.erros ? 'bolinha' : 'bolinha lav'} />)}
+                  </span>
                   <IcSeta color="var(--text3)" size={18} />
                 </Link>
               ))}
             </div>
-            <span className="muted">Cada bolinha é uma questão para refazer. Toque num tema para treinar só ele.</span>
+            <span className="muted">{confirmar ? 'Cada bolinha é uma questão: vermelha, um erro; roxa, uma para confirmar.' : 'Cada bolinha é uma questão para refazer.'} Toque num tema para treinar só ele.</span>
           </section>
         )}
-      </div>
+      </main>
       <BarraNav />
     </div>
   );

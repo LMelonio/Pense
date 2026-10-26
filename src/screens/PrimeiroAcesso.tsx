@@ -19,11 +19,11 @@ export default function PrimeiroAcesso() {
 
   return (
     <div className="app">
-      <div className="screen">
-        <div className="row" style={{ alignItems: 'flex-end', gap: 6 }}>
+      <main className="screen">
+        <div className="row alinha-base gap-6">
           <Mascote largura={96} />
-          <div className="card" style={{ borderRadius: '20px 20px 20px 6px', flex: 1, marginBottom: 20 }}>
-            <span className="h2" style={{ fontSize: 19 }}>Vamos montar o seu ritmo de estudo</span>
+          <div className="card balao">
+            <h1 className="h2 fs-19">Vamos montar o seu ritmo de estudo</h1>
           </div>
         </div>
         <div className="col"><span className="kicker">Língua estrangeira</span>
@@ -32,19 +32,19 @@ export default function PrimeiroAcesso() {
         </div>
         <div className="col"><span className="kicker">Frequência de estudo</span>
           <span className="muted">Quanto você quer estudar por dia?</span>
-          <div role="radiogroup" aria-label="Frequência de estudo" className="col" style={{ gap: 10 }}>
+          <div role="radiogroup" aria-label="Frequência de estudo" className="col gap-10">
             {METAS.map((m) => (
               <button key={m.xp} type="button" role="radio" aria-checked={meta === m.xp} onClick={() => setMeta(m.xp)} className={`alt ${meta === m.xp ? 'sel' : ''}`}>
-                <span className="alt-body" style={{ fontWeight: 600 }}>{m.nome}</span>
+                <span className="alt-body peso-600">{m.nome}</span>
                 <span className="muted">{m.xp} XP por dia · ~{m.min} min</span>
               </button>
             ))}
           </div>
         </div>
-        <span className="muted" style={{ textAlign: 'center' }}>Dá para mudar essas escolhas depois, no Perfil.</span>
+        <span className="muted centro">Dá para mudar essas escolhas depois, no Perfil.</span>
         <div className="spacer" />
         <button className="btn" onClick={salvar}>Começar a estudar</button>
-      </div>
+      </main>
     </div>
   );
 }

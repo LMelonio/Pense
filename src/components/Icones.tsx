@@ -56,7 +56,7 @@ export const CORES_COROA =[['#FFFFFF', '#B8C9C4'], ['#E4A774', '#A8673A'], ['#E3
 export function Mascote({ largura = 120, humor = 'feliz', flutuar = true, faisca = false }: { largura?: number; humor?: 'feliz' | 'comemorando' | 'triste'; flutuar?: boolean; faisca?: boolean }) {
   const boca = humor === 'comemorando' ? <path d="M70 96 q13 18 26 0 z" fill="#12302C" /> : humor === 'triste' ? <path d="M74 104 q9 -7 18 0" fill="none" stroke="#12302C" strokeWidth="3" strokeLinecap="round" /> : <path d="M74 99 q9 9 18 0" fill="none" stroke="#12302C" strokeWidth="3" strokeLinecap="round" />;
   return (
-    <svg width={largura} height={largura * 0.875} viewBox="0 0 160 140" aria-hidden="true" className={flutuar ? (humor === 'comemorando' ? 'a-jump' : 'a-float') : undefined} style={{ flexShrink: 0 }}>
+    <svg width={largura} height={largura * 0.875} viewBox="0 0 160 140" aria-hidden="true" className={flutuar ? (humor === 'comemorando' ? 'mascote a-jump' : 'mascote a-float') : 'mascote'}>
       <g fill="#7CCFC2"><circle cx="55" cy="70" r="38" /><circle cx="95" cy="60" r="40" /><circle cx="122" cy="86" r="30" /><circle cx="40" cy="96" r="28" /><circle cx="82" cy="100" r="34" /></g>
       <g fill="none" stroke="#2E9384" strokeWidth="3" strokeLinecap="round"><path d="M44 52 q10 -10 22 -2" /><path d="M96 38 q12 -4 18 8" /></g>
       {humor === 'comemorando'
