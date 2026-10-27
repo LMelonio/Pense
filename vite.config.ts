@@ -44,20 +44,35 @@ function politicaDeSeguranca(turnstile: boolean): Plugin {
   };
 }
 
+// No build do Cloudflare (WORKERS_CI), sem as variáveis do Supabase o app sairia em modo demonstração por cima do app
+// de verdade, e com o endereço errado sairia sem banco. Melhor o build falhar: o app de antes continua no ar.
+// No computador, o build sem .env continua gerando o modo demonstração.
+function conferirSupabase(env: Record<string, string>) {
+  const erros: string[] = [];
+  const url = env.VITE_SUPABASE_URL ?? '';
+  if (!/^https:\/\/[a-z0-9]+\.supabase\.co$/.test(url)) erros.push(`VITE_SUPABASE_URL deve ser https://<id-do-projeto>.supabase.co (veio "${url}")`);
+  if (!/^(sb_publishable_|eyJ)/.test(env.VITE_SUPABASE_ANON_KEY ?? '')) erros.push('VITE_SUPABASE_ANON_KEY deve ser a chave publishable (sb_publishable_…) ou a anon legada (eyJ…)');
+  if (erros.length) throw new Error(`Confira as variáveis do build no Cloudflare (Settings › Build › Variables and secrets):\n- ${erros.join('\n- ')}`);
+}
+
 // base './' faz o app funcionar na raiz do domínio (Cloudflare Pages) e numa subpasta (usuario.github.io/repositorio/)
-export default defineConfig(({ mode }) => ({
-  plugins: [react(), politicaDeSeguranca(!!loadEnv(mode, process.cwd(), 'VITE_').VITE_TURNSTILE_SITE_KEY)],
-  base: './',
-  server: { port: 5173, open: true },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-          supabase: ['@supabase/supabase-js'],
-          texto: ['katex', 'marked', 'dompurify']
+export default defineConfig(({ command, mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  if (command === 'build' && process.env.WORKERS_CI) conferirSupabase(env);
+  return {
+    plugins: [react(), politicaDeSeguranca(!!env.VITE_TURNSTILE_SITE_KEY)],
+    base: './',
+    server: { port: 5173, open: true },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            react: ['react', 'react-dom', 'react-router-dom'],
+            supabase: ['@supabase/supabase-js'],
+            texto: ['katex', 'marked', 'dompurify']
+          }
         }
       }
     }
-  }
-}));
+  };
+});

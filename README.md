@@ -107,7 +107,7 @@ Para publicar sozinho a cada push na `main`:
 
 1. No Cloudflare, abra o Worker `pense` › *Settings › Build › Git repository › Connect* e escolha `LMelonio/Pense`, branch `main`.
 2. **Build command:** `npm run build`. **Deploy command:** `npx wrangler deploy`.
-3. Nas variáveis do **build** (*Settings › Build › Variables and secrets*, não as do Worker), crie `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e, com o CAPTCHA, `VITE_TURNSTILE_SITE_KEY`. O Vite grava esses valores no app durante o build: **sem eles, o build publica o modo demonstração por cima do app de verdade.** Se o build reclamar da versão do Node, crie também `NODE_VERSION` = `22`.
+3. Nas variáveis do **build** (*Settings › Build › Variables and secrets*, não as do Worker), crie `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e, com o CAPTCHA, `VITE_TURNSTILE_SITE_KEY`. O Vite grava esses valores no app durante o build. No Cloudflare, o build **falha** se faltar uma das duas ou se o endereço não for `https://<id-do-projeto>.supabase.co`, e o app de antes continua no ar (a checagem está no `vite.config.ts`). Se o build reclamar da versão do Node, crie também `NODE_VERSION` = `22`.
 
 No Supabase, *Authentication › URL Configuration* fica como na seção 3 (Site URL no endereço novo e os dois endereços nos Redirect URLs). No Google, os domínios da seção 4.
 
