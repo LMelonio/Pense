@@ -30,6 +30,10 @@ function politicaDeSeguranca(turnstile: boolean): Plugin {
     '  X-Content-Type-Options: nosniff',
     '  Referrer-Policy: strict-origin-when-cross-origin',
     '  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()',
+    '',
+    // assets/ tem hash no nome (o conteúdo nunca muda): o navegador guarda por 1 ano. O resto revalida a cada visita.
+    '/assets/*',
+    '  Cache-Control: public, max-age=31536000, immutable',
     ''
   ].join('\n');
   return {
@@ -40,7 +44,7 @@ function politicaDeSeguranca(turnstile: boolean): Plugin {
   };
 }
 
-// base './' faz o app funcionar em qualquer caminho do GitHub Pages (usuario.github.io/repositorio/)
+// base './' faz o app funcionar na raiz do domínio (Cloudflare Pages) e numa subpasta (usuario.github.io/repositorio/)
 export default defineConfig(({ mode }) => ({
   plugins: [react(), politicaDeSeguranca(!!loadEnv(mode, process.cwd(), 'VITE_').VITE_TURNSTILE_SITE_KEY)],
   base: './',

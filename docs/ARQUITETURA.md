@@ -22,7 +22,7 @@ flowchart LR
   SB --> PG[(Postgres<br/>supabase/migrations)]
 ```
 
-O app é uma SPA em React + Vite (HashRouter), publicada no GitHub Pages. No Supabase, a pontuação é calculada
+O app é uma SPA em React + Vite (HashRouter), publicada no Cloudflare como arquivos estáticos (`wrangler.jsonc`; no GitHub Pages até 25/11/2026). No Supabase, a pontuação é calculada
 pelo banco (funções em PL/pgSQL, com RLS); no modo demonstração, o `demoRepo` faz o papel do servidor com as mesmas
 regras, escritas em TypeScript.
 

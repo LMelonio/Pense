@@ -1,9 +1,9 @@
 # Pense · app de estudos para provas, concursos e seleções
 
-React + Vite + TypeScript, banco no Supabase e publicação no GitHub Pages.
+React + Vite + TypeScript, banco no Supabase e publicação no Cloudflare.
 Primeiro conteúdo: 366 questões do ENEM 2024/2025, com dicas, resposta e explicação.
 
-App publicado: https://lmelonio.github.io/Pense/
+App publicado: https://<meu-domínio>/ (o endereço antigo, https://lmelonio.github.io/Pense/, fica no ar até 25/11/2026)
 
 ---
 
@@ -59,8 +59,8 @@ No primeiro acesso o aluno escolhe só a **língua estrangeira** (Inglês ou Esp
    - ligue **Email** e, para testes, desligue **Confirm email**;
    - ligue **Allow manual linking** (o visitante salvar o progresso com Google).
 6. Em *Authentication › URL Configuration*:
-   - **Site URL:** `https://lmelonio.github.io/Pense/`
-   - **Redirect URLs:** `http://localhost:5173/**` e `https://lmelonio.github.io/Pense/**`
+   - **Site URL:** `https://<meu-domínio>/`
+   - **Redirect URLs:** `http://localhost:5173/**`, `https://<meu-domínio>/**` e, até 25/11/2026, `https://lmelonio.github.io/Pense/**`
 7. Rode `npm run dev` de novo. O aviso amarelo de demonstração some.
 
 Para conferir o conteúdo carregado:
@@ -76,16 +76,40 @@ Deve mostrar as 15 matérias somando 366 questões (Português 37, Literatura 17
 O Google exige um cliente OAuth no Google Cloud; o Supabase faz o resto.
 
 1. Em [console.cloud.google.com](https://console.cloud.google.com), crie (ou escolha) um projeto.
-2. Em *Google Auth Platform › Branding*, preencha nome do app (Pense), e-mail de suporte e, em **Authorized domains**, `<id-do-projeto>.supabase.co` e `lmelonio.github.io`.
+2. Em *Google Auth Platform › Branding*, preencha nome do app (Pense), e-mail de suporte e, em **Authorized domains**, `<id-do-projeto>.supabase.co`, `<meu-domínio>` e, até 25/11/2026, `lmelonio.github.io`.
 3. Em *Audience*, escolha **External**. Em modo **Testing**, só os e-mails cadastrados em *Test users* conseguem entrar; para liberar para todos, clique em **Publish app** (com os escopos básicos de nome e e-mail não há revisão do Google).
 4. Em *Clients › Create client*, tipo **Web application**:
-   - **Authorized JavaScript origins:** `https://lmelonio.github.io` e `http://localhost:5173`
+   - **Authorized JavaScript origins:** `https://<meu-domínio>`, `http://localhost:5173` e, até 25/11/2026, `https://lmelonio.github.io`
    - **Authorized redirect URIs:** `https://<id-do-projeto>.supabase.co/auth/v1/callback`
 5. Copie o **Client ID** e o **Client secret** e cole no Supabase em *Authentication › Sign In / Providers › Google*, ligando o provedor.
 
 Pronto: o botão "Continuar com Google" passa a funcionar no app local e no publicado, sem mudar código.
 
-## 5. Publicar no GitHub Pages
+## 5. Publicar
+
+Endereço final: **https://<meu-domínio>/**, no Cloudflare. Até **25/11/2026** (30 dias depois da mudança), o app continua também no GitHub Pages, em https://lmelonio.github.io/Pense/, para quem ainda usa o endereço antigo.
+
+A chave publishable/anon pode ficar no app publicado, porque o acesso é protegido pelo RLS: cada aluno só lê e grava os próprios dados. A secret/service_role não pode.
+
+### Cloudflare
+
+O `wrangler.jsonc` publica a pasta `dist` como arquivos estáticos (Workers com assets). Não tem `main`, porque nenhum código roda no servidor, nem `not_found_handling`, porque as rotas do app ficam depois do `#`: o servidor só entrega arquivos que existem.
+
+1. No Cloudflare, em *Workers & Pages › Create › Import a repository*, escolha `LMelonio/Pense`, branch `main`. O nome do Worker precisa ser `pense`, o mesmo do `wrangler.jsonc`.
+2. **Build command:** `npm run build`. **Deploy command:** `npx wrangler deploy`.
+3. Nas variáveis do **build** (*Settings › Build › Variables and secrets*, não as do Worker), crie `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e, com o CAPTCHA, `VITE_TURNSTILE_SITE_KEY`. O Vite grava esses valores no app durante o build. Se o build reclamar da versão do Node, crie também `NODE_VERSION` = `22`.
+4. Em *Settings › Domains & Routes*, ligue o domínio `<meu-domínio>`.
+5. No Supabase, ajuste *Authentication › URL Configuration* como na seção 3 (Site URL no domínio novo e os dois endereços nos Redirect URLs). No Google, os domínios da seção 4.
+
+O build gera `dist/_headers`, que o Cloudflare aplica: a CSP, os cabeçalhos de segurança e o cache de 1 ano para `assets/` (arquivos com hash no nome; o resto revalida a cada visita).
+
+Cuidados:
+
+- **Quem entrou sem login** tem a sessão guardada no navegador, no endereço antigo. No endereço novo, essa pessoa começa do zero. Antes de trocar, ela precisa salvar o progresso com e-mail ou Google (*Perfil › Configurações*).
+- **CAPTCHA:** ligue no Supabase (*Attack Protection*) só quando todas as versões publicadas mandarem o token. O GitHub Pages não tem a `VITE_TURNSTILE_SITE_KEY`: com o CAPTCHA ligado no Supabase, o login por lá para de funcionar. No Turnstile, cadastre `<meu-domínio>` como hostname.
+- Deixe desligados o **Web Analytics** e o **Rocket Loader** do Cloudflare. A CSP bloqueia os scripts deles, e a política de privacidade promete não usar ferramentas de análise de terceiros.
+
+### GitHub Pages (até 25/11/2026)
 
 O workflow `.github/workflows/deploy.yml` publica a cada push na `main`.
 
@@ -93,7 +117,11 @@ O workflow `.github/workflows/deploy.yml` publica a cada push na `main`.
 2. Em **Settings › Secrets and variables › Actions**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (os mesmos valores do `.env`).
 3. Em **Actions**, rode de novo o workflow "Deploy no GitHub Pages" para usar os secrets.
 
-A chave publishable/anon pode ficar no app publicado, porque o acesso é protegido pelo RLS: cada aluno só lê e grava os próprios dados. A secret/service_role não pode.
+> **Lembrete: desligar o GitHub Pages em 25/11/2026.**
+> 1. Apague `.github/workflows/deploy.yml` e, em *Settings › Pages*, despublique o site.
+> 2. No Supabase, tire `https://lmelonio.github.io/Pense/**` dos Redirect URLs. No Google, tire `lmelonio.github.io` dos domínios e das origens.
+> 3. Em `public/privacidade.html`, tire o GitHub Pages da lista de quem recebe dados e atualize a data da política.
+> 4. Neste README, tire o endereço antigo do topo e as menções "até 25/11/2026".
 
 ## 6. Estrutura
 
@@ -152,7 +180,7 @@ No modo demonstração (sem Supabase), o `demoRepo` faz o papel do servidor com 
 ### Segurança: o que ainda depende de configuração
 
 - **Confirmação de e-mail e CAPTCHA:** para abrir para alunos, ligue *Confirm email* (precisa de SMTP próprio, veja a seção 2) e o CAPTCHA (Cloudflare Turnstile) em *Authentication › Attack Protection*, que protege o cadastro e o acesso sem login. O widget já está no app: ponha a chave de site em `VITE_TURNSTILE_SITE_KEY` (no `.env` e nos secrets do deploy); sem ela, nada é carregado do Cloudflare.
-- **Cabeçalhos:** o build publica a política de segurança de conteúdo (CSP) numa `<meta>` e gera `dist/_headers` com a mesma política, `frame-ancestors 'none'`, `X-Content-Type-Options` e `Referrer-Policy`. O GitHub Pages ignora esse arquivo; o Cloudflare Pages e o Netlify o aplicam.
+- **Cabeçalhos:** o build publica a política de segurança de conteúdo (CSP) numa `<meta>` e gera `dist/_headers` com a mesma política, `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy` e o cache de `assets/`. O Cloudflare aplica esse arquivo; o GitHub Pages o ignora (lá vale só a `<meta>`).
 - **Termos de uso e Política de privacidade:** `public/termos.html` e `public/privacidade.html`, ligados na entrada e nas Configurações. Antes de abrir ao público, preencha o responsável pelos dados e o e-mail de contato (marcados com `PREENCHER`).
 
 ## 8. Comandos

@@ -1,0 +1,11 @@
+// Publicação no Cloudflare (Workers com arquivos estáticos): entrega a pasta dist gerada por `npm run build`.
+// Sem "main": nenhum código roda no servidor. Sem "not_found_handling": as rotas do app ficam depois do #, então o
+// servidor só entrega arquivos que existem (um arquivo que falta volta como 404, nunca o index.html no lugar dele).
+// O dist/_headers (gerado no build) traz a CSP, os cabeçalhos de segurança e o cache de assets/.
+{
+  "name": "pense",
+  "compatibility_date": "2026-10-20",
+  "assets": {
+    "directory": "./dist"
+  }
+}

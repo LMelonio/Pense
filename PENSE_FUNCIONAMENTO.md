@@ -49,7 +49,7 @@ flowchart LR
   A[Navegador do aluno<br/>React + Vite + TypeScript] -- leitura do conteúdo --> B[(Supabase<br/>Postgres + Auth)]
   A -- respostas e sessões<br/>funções do banco --> B
   A -- reserva offline --> C[public/data/conteudo.json<br/>+ imagens]
-  D[GitHub Actions] -- build e deploy --> E[GitHub Pages]
+  D[Cloudflare<br/>build a cada push] -- deploy --> E[Cloudflare<br/>arquivos estáticos]
   E -- entrega o app --> A
 ```
 
@@ -58,7 +58,7 @@ flowchart LR
 | Interface | React 18, React Router (HashRouter), TypeScript, Vite 5 | Telas, navegação, reação imediata a cada resposta |
 | Texto das questões | `marked` (Markdown), KaTeX (fórmulas), DOMPurify (limpeza de HTML) | Exibe texto, tabelas, fórmulas e figuras com segurança |
 | Dados e contas | Supabase (Postgres, Auth, RLS, funções em PL/pgSQL) | Contas, progresso, pontuação oficial |
-| Hospedagem | GitHub Pages, publicado por GitHub Actions a cada push na `main` | Site estático |
+| Hospedagem | Cloudflare (Workers com arquivos estáticos, `wrangler.jsonc`), em https://<meu-domínio>/, a cada push na `main`. Até 25/11/2026, também no GitHub Pages (`deploy.yml`) | Site estático |
 | Offline | Service worker (`public/sw.js`) + `conteudo.json` | O app abre e mostra questões sem internet |
 
 ### Pastas do código
@@ -624,15 +624,14 @@ Erros do Supabase (que vêm em inglês) são traduzidos para mensagens em portug
   - *Allow manual linking* ligado (visitante salvar com Google);
   - Google, quando houver cliente OAuth.
 - **URL Configuration:**
-  - Site URL: `https://lmelonio.github.io/Pense/`;
-  - Redirect URLs: `http://localhost:5173/**` e `https://lmelonio.github.io/Pense/**`.
+  - Site URL: `https://<meu-domínio>/`;
+  - Redirect URLs: `http://localhost:5173/**`, `https://<meu-domínio>/**` e, até 25/11/2026, `https://lmelonio.github.io/Pense/**`.
 - **E-mails:** o envio padrão só entrega para a equipe do projeto. Para "Esqueci minha senha" funcionar para todos, configure um SMTP próprio (Resend, Brevo, SES…).
 
-### 11.3 Publicação (GitHub Pages)
+### 11.3 Publicação (Cloudflare; GitHub Pages até 25/11/2026)
 
-1. *Settings › Pages › Source*: **GitHub Actions**.
-2. *Settings › Secrets and variables › Actions*: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
-3. Cada push na `main` dispara o workflow `.github/workflows/deploy.yml`, que gera o build e publica.
+- **Cloudflare:** o `wrangler.jsonc` publica a pasta `dist` (sem `main` e sem `not_found_handling`, porque as rotas usam `#`). Build `npm run build`, deploy `npx wrangler deploy`; `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e `VITE_TURNSTILE_SITE_KEY` nas variáveis do build. Passo a passo na seção 5 do README.
+- **GitHub Pages:** *Settings › Pages › Source* = **GitHub Actions**; `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` em *Settings › Secrets and variables › Actions*; cada push na `main` dispara o `.github/workflows/deploy.yml`. **Desligar em 25/11/2026** (lembrete com os passos no README).
 
 ### 11.4 Comandos
 
@@ -728,7 +727,7 @@ Depois de 2023 vêm 2022, 2021, 2020 e a 2ª aplicação de 2025. O ENEM 2024 e 
 |---|---|
 | Configuração | **F4-01:** SMTP próprio e confirmação de e-mail (Supabase › Authentication › Emails). |
 | Configuração | **F4-02:** CAPTCHA. O widget do Cloudflare Turnstile já está no app; falta criar o site no Turnstile, pôr `VITE_TURNSTILE_SITE_KEY` nos secrets do deploy e ligar o CAPTCHA em Supabase › Attack Protection. |
-| Configuração | **F4-04:** hospedagem com cabeçalhos (Cloudflare Pages ou Netlify). O build já gera o `_headers`; falta mudar a hospedagem e ajustar Site URL e Redirect URLs no Supabase. |
+| Configuração | **F4-04:** hospedagem com cabeçalhos: em andamento no Cloudflare (`wrangler.jsonc`, `_headers` com CSP e cache de `assets/`). Falta ligar o domínio e ajustar Site URL e Redirect URLs no Supabase; desligar o GitHub Pages em 25/11/2026. |
 | Configuração | **F4-05:** login com Google (cliente OAuth no Google Cloud, seção 4 do README). |
 | Produto | **F4-06:** lembrete diário: a preferência é gravada, mas o aviso ainda não é enviado (Web Push ou e-mail agendado). |
 | Produto | **F4-07:** o anúncio premiado ainda é espaço reservado: decidir entre uma rede real, sem publicidade por perfil, ou tirar a opção. |
