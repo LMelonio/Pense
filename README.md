@@ -3,7 +3,7 @@
 React + Vite + TypeScript, banco no Supabase e publicação no Cloudflare.
 Primeiro conteúdo: 366 questões do ENEM 2024/2025, com dicas, resposta e explicação.
 
-App publicado: https://<meu-domínio>/ (o endereço antigo, https://lmelonio.github.io/Pense/, fica no ar até 25/11/2026)
+App publicado: https://pense.lucas-melonio.workers.dev/ (o endereço antigo, https://lmelonio.github.io/Pense/, fica no ar até 25/11/2026)
 
 ---
 
@@ -59,8 +59,8 @@ No primeiro acesso o aluno escolhe só a **língua estrangeira** (Inglês ou Esp
    - ligue **Email** e, para testes, desligue **Confirm email**;
    - ligue **Allow manual linking** (o visitante salvar o progresso com Google).
 6. Em *Authentication › URL Configuration*:
-   - **Site URL:** `https://<meu-domínio>/`
-   - **Redirect URLs:** `http://localhost:5173/**`, `https://<meu-domínio>/**` e, até 25/11/2026, `https://lmelonio.github.io/Pense/**`
+   - **Site URL:** `https://pense.lucas-melonio.workers.dev/`
+   - **Redirect URLs:** `http://localhost:5173/**`, `https://pense.lucas-melonio.workers.dev/**` e, até 25/11/2026, `https://lmelonio.github.io/Pense/**`
 7. Rode `npm run dev` de novo. O aviso amarelo de demonstração some.
 
 Para conferir o conteúdo carregado:
@@ -76,10 +76,10 @@ Deve mostrar as 15 matérias somando 366 questões (Português 37, Literatura 17
 O Google exige um cliente OAuth no Google Cloud; o Supabase faz o resto.
 
 1. Em [console.cloud.google.com](https://console.cloud.google.com), crie (ou escolha) um projeto.
-2. Em *Google Auth Platform › Branding*, preencha nome do app (Pense), e-mail de suporte e, em **Authorized domains**, `<id-do-projeto>.supabase.co`, `<meu-domínio>` e, até 25/11/2026, `lmelonio.github.io`.
+2. Em *Google Auth Platform › Branding*, preencha nome do app (Pense), e-mail de suporte e, em **Authorized domains**, `<id-do-projeto>.supabase.co`, `lucas-melonio.workers.dev` (o Google pede o domínio sem o `pense.`, porque `workers.dev` é sufixo público) e, até 25/11/2026, `lmelonio.github.io`.
 3. Em *Audience*, escolha **External**. Em modo **Testing**, só os e-mails cadastrados em *Test users* conseguem entrar; para liberar para todos, clique em **Publish app** (com os escopos básicos de nome e e-mail não há revisão do Google).
 4. Em *Clients › Create client*, tipo **Web application**:
-   - **Authorized JavaScript origins:** `https://<meu-domínio>`, `http://localhost:5173` e, até 25/11/2026, `https://lmelonio.github.io`
+   - **Authorized JavaScript origins:** `https://pense.lucas-melonio.workers.dev`, `http://localhost:5173` e, até 25/11/2026, `https://lmelonio.github.io`
    - **Authorized redirect URIs:** `https://<id-do-projeto>.supabase.co/auth/v1/callback`
 5. Copie o **Client ID** e o **Client secret** e cole no Supabase em *Authentication › Sign In / Providers › Google*, ligando o provedor.
 
@@ -87,7 +87,7 @@ Pronto: o botão "Continuar com Google" passa a funcionar no app local e no publ
 
 ## 5. Publicar
 
-Endereço final: **https://<meu-domínio>/**, no Cloudflare. Até **25/11/2026** (30 dias depois da mudança), o app continua também no GitHub Pages, em https://lmelonio.github.io/Pense/, para quem ainda usa o endereço antigo.
+Endereço: **https://pense.lucas-melonio.workers.dev/**, no Cloudflare (subdomínio gratuito `workers.dev`). Até **25/11/2026** (30 dias depois da mudança), o app continua também no GitHub Pages, em https://lmelonio.github.io/Pense/, para quem ainda usa o endereço antigo.
 
 A chave publishable/anon pode ficar no app publicado, porque o acesso é protegido pelo RLS: cada aluno só lê e grava os próprios dados. A secret/service_role não pode.
 
@@ -95,18 +95,30 @@ A chave publishable/anon pode ficar no app publicado, porque o acesso é protegi
 
 O `wrangler.jsonc` publica a pasta `dist` como arquivos estáticos (Workers com assets). Não tem `main`, porque nenhum código roda no servidor, nem `not_found_handling`, porque as rotas do app ficam depois do `#`: o servidor só entrega arquivos que existem.
 
-1. No Cloudflare, em *Workers & Pages › Create › Import a repository*, escolha `LMelonio/Pense`, branch `main`. O nome do Worker precisa ser `pense`, o mesmo do `wrangler.jsonc`.
+O Worker `pense` já existe na conta do Cloudflare. Para publicar do próprio computador, com o `.env` preenchido:
+
+```bash
+npx wrangler login     # uma vez por máquina
+npm run build
+npx wrangler deploy
+```
+
+Para publicar sozinho a cada push na `main`:
+
+1. No Cloudflare, abra o Worker `pense` › *Settings › Build › Git repository › Connect* e escolha `LMelonio/Pense`, branch `main`.
 2. **Build command:** `npm run build`. **Deploy command:** `npx wrangler deploy`.
-3. Nas variáveis do **build** (*Settings › Build › Variables and secrets*, não as do Worker), crie `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e, com o CAPTCHA, `VITE_TURNSTILE_SITE_KEY`. O Vite grava esses valores no app durante o build. Se o build reclamar da versão do Node, crie também `NODE_VERSION` = `22`.
-4. Em *Settings › Domains & Routes*, ligue o domínio `<meu-domínio>`.
-5. No Supabase, ajuste *Authentication › URL Configuration* como na seção 3 (Site URL no domínio novo e os dois endereços nos Redirect URLs). No Google, os domínios da seção 4.
+3. Nas variáveis do **build** (*Settings › Build › Variables and secrets*, não as do Worker), crie `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e, com o CAPTCHA, `VITE_TURNSTILE_SITE_KEY`. O Vite grava esses valores no app durante o build: **sem eles, o build publica o modo demonstração por cima do app de verdade.** Se o build reclamar da versão do Node, crie também `NODE_VERSION` = `22`.
+
+No Supabase, *Authentication › URL Configuration* fica como na seção 3 (Site URL no endereço novo e os dois endereços nos Redirect URLs). No Google, os domínios da seção 4.
+
+Para trocar por um domínio próprio depois: ligue-o em *Settings › Domains & Routes* e troque `pense.lucas-melonio.workers.dev` no `index.html` (og:url e og:image), neste README, no `PENSE_FUNCIONAMENTO.md`, no Supabase, no Google e no Turnstile. Quem usa sem login perde o progresso na mudança (veja abaixo).
 
 O build gera `dist/_headers`, que o Cloudflare aplica: a CSP, os cabeçalhos de segurança e o cache de 1 ano para `assets/` (arquivos com hash no nome; o resto revalida a cada visita).
 
 Cuidados:
 
 - **Quem entrou sem login** tem a sessão guardada no navegador, no endereço antigo. No endereço novo, essa pessoa começa do zero. Antes de trocar, ela precisa salvar o progresso com e-mail ou Google (*Perfil › Configurações*).
-- **CAPTCHA:** ligue no Supabase (*Attack Protection*) só quando todas as versões publicadas mandarem o token. O GitHub Pages não tem a `VITE_TURNSTILE_SITE_KEY`: com o CAPTCHA ligado no Supabase, o login por lá para de funcionar. No Turnstile, cadastre `<meu-domínio>` como hostname.
+- **CAPTCHA:** ligue no Supabase (*Attack Protection*) só quando todas as versões publicadas mandarem o token. O GitHub Pages não tem a `VITE_TURNSTILE_SITE_KEY`: com o CAPTCHA ligado no Supabase, o login por lá para de funcionar. No Turnstile, cadastre `pense.lucas-melonio.workers.dev` como hostname.
 - Deixe desligados o **Web Analytics** e o **Rocket Loader** do Cloudflare. A CSP bloqueia os scripts deles, e a política de privacidade promete não usar ferramentas de análise de terceiros.
 
 ### GitHub Pages (até 25/11/2026)

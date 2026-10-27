@@ -58,7 +58,7 @@ flowchart LR
 | Interface | React 18, React Router (HashRouter), TypeScript, Vite 5 | Telas, navegação, reação imediata a cada resposta |
 | Texto das questões | `marked` (Markdown), KaTeX (fórmulas), DOMPurify (limpeza de HTML) | Exibe texto, tabelas, fórmulas e figuras com segurança |
 | Dados e contas | Supabase (Postgres, Auth, RLS, funções em PL/pgSQL) | Contas, progresso, pontuação oficial |
-| Hospedagem | Cloudflare (Workers com arquivos estáticos, `wrangler.jsonc`), em https://<meu-domínio>/, a cada push na `main`. Até 25/11/2026, também no GitHub Pages (`deploy.yml`) | Site estático |
+| Hospedagem | Cloudflare (Workers com arquivos estáticos, `wrangler.jsonc`), em https://pense.lucas-melonio.workers.dev/, com `npx wrangler deploy` (ou a cada push na `main`, com o GitHub ligado ao Worker). Até 25/11/2026, também no GitHub Pages (`deploy.yml`) | Site estático |
 | Offline | Service worker (`public/sw.js`) + `conteudo.json` | O app abre e mostra questões sem internet |
 
 ### Pastas do código
@@ -624,8 +624,8 @@ Erros do Supabase (que vêm em inglês) são traduzidos para mensagens em portug
   - *Allow manual linking* ligado (visitante salvar com Google);
   - Google, quando houver cliente OAuth.
 - **URL Configuration:**
-  - Site URL: `https://<meu-domínio>/`;
-  - Redirect URLs: `http://localhost:5173/**`, `https://<meu-domínio>/**` e, até 25/11/2026, `https://lmelonio.github.io/Pense/**`.
+  - Site URL: `https://pense.lucas-melonio.workers.dev/`;
+  - Redirect URLs: `http://localhost:5173/**`, `https://pense.lucas-melonio.workers.dev/**` e, até 25/11/2026, `https://lmelonio.github.io/Pense/**`.
 - **E-mails:** o envio padrão só entrega para a equipe do projeto. Para "Esqueci minha senha" funcionar para todos, configure um SMTP próprio (Resend, Brevo, SES…).
 
 ### 11.3 Publicação (Cloudflare; GitHub Pages até 25/11/2026)
